@@ -1,0 +1,17 @@
+services:
+  local-responses-api-router:
+    build: .
+    container_name: local-responses-api-router
+    restart: unless-stopped
+    environment:
+      CODEX_ROUTER_DATA_DIR: /data
+      CODEX_ROUTER_LISTEN_HOST: 0.0.0.0
+      CODEX_ROUTER_DASHBOARD_PORT: 38127
+      CODEX_ROUTER_ROUTER_PORT: 38128
+      CODEX_ROUTER_START_ROUTER_ON_LAUNCH: "true"
+      NITRO_PORT: 38127
+    ports:
+      - "127.0.0.1:38127:38127"
+      - "127.0.0.1:38128:38128"
+    volumes:
+      - ./data:/data
