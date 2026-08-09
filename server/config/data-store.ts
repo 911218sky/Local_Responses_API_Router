@@ -170,4 +170,4 @@ function integer(value: unknown, min: number, max: number, fallback: number): nu
   return Number.isInteger(result) && result >= min && result <= max ? result : fallback
 }
 
-export { appData, loadConfig, normalizeConfig, normalizeProvider, saveConfig }
+export { appData, database, loadConfig, normalizeConfig, normalizeProvider, saveConfig }

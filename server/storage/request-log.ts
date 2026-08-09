@@ -11,9 +11,9 @@ class RequestLogStore extends EventEmitter {
   readonly maxEntries: number
   readonly previousInputs: Map<string, string>
 
-  constructor(dataDirectory: string, shouldRecord: () => boolean) {
+  constructor(dataDirectory: string, shouldRecord: () => boolean, database?: RouterDatabase) {
     super()
-    this.database = new RouterDatabase(dataDirectory)
+    this.database = database || new RouterDatabase(dataDirectory)
     this.legacyPath = path.join(dataDirectory, "request-logs.json")
     this.shouldRecord = shouldRecord
     this.maxEntries = 200
@@ -80,6 +80,11 @@ class RequestLogStore extends EventEmitter {
     this.previousInputs.clear()
     this.emit("changed", { type: "cleared" })
     return removed
+  }
+
+  clearAfterDatabaseReset(): void {
+    this.previousInputs.clear()
+    this.emit("changed", { type: "cleared" })
   }
 
   remove(id: string): RequestLog | null {

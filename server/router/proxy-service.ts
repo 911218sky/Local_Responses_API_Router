@@ -9,6 +9,7 @@ import {
   errorMessage,
   type Headers,
   isJsonArray,
+  isJsonObject,
   type JsonArray,
   type JsonObject,
   type Provider,
@@ -68,6 +69,7 @@ class ProxyService extends EventEmitter {
   readonly contextStore: ResponseContextStore
   server: http.Server | null
   startedAt: string | null
+  private startPromise: Promise<RouterStatus> | null
   // Retries update one entry so the dashboard never double-counts a client request.
   readonly activeRequests: ActiveRequestTracker
 
@@ -78,6 +80,7 @@ class ProxyService extends EventEmitter {
     this.contextStore = contextStore
     this.server = null
     this.startedAt = null
+    this.startPromise = null
     this.activeRequests = new ActiveRequestTracker({
       timeoutMs: () => this.getConfig().activeRequestTimeoutMs,
       logStore: this.logStore,
@@ -86,45 +89,70 @@ class ProxyService extends EventEmitter {
   }
 
   start(): Promise<RouterStatus> {
-    if (this.server) return Promise.resolve(this.status())
+    if (this.startedAt && this.server) return Promise.resolve(this.status())
+    if (this.startPromise) return this.startPromise
     const { routerPort } = this.getConfig()
-    this.server = http.createServer((req, res) => this.handleHttp(req, res))
-    this.server.on("upgrade", (req, socket, head) => this.handleUpgrade(req, socket, head))
-    this.server.on("error", (error) => console.error(`Router server error: ${errorMessage(error)}`))
-    return new Promise((resolve, reject) => {
-      const server = this.server
-      if (!server) return reject(new Error("Router server was not created."))
-      server.once("error", reject)
+    const server = http.createServer((req, res) => this.handleHttp(req, res))
+    this.server = server
+    server.on("upgrade", (req, socket, head) => this.handleUpgrade(req, socket, head))
+    let settled = false
+    const promise = new Promise<RouterStatus>((resolve, reject) => {
+      const fail = (error: unknown): void => {
+        if (settled) {
+          console.error(`Router server error: ${errorMessage(error)}`)
+          return
+        }
+        settled = true
+        if (this.server === server) {
+          this.server = null
+          this.startedAt = null
+        }
+        if (server.listening) server.close()
+        this.startPromise = null
+        reject(error)
+      }
+      server.on("error", fail)
       server.listen(routerPort, process.env.CODEX_ROUTER_LISTEN_HOST || "127.0.0.1", () => {
-        server.off("error", reject)
+        if (settled) return
+        settled = true
+        if (this.server !== server) {
+          this.startPromise = null
+          resolve(this.status())
+          return
+        }
         this.startedAt = new Date().toISOString()
+        this.startPromise = null
         console.log(`Router service listening on http://127.0.0.1:${routerPort}/<provider>/v1`)
         const status = this.status()
         this.emit("changed", { type: "router-started", status })
         resolve(status)
       })
     })
+    this.startPromise = promise
+    return promise
   }
 
-  stop(): Promise<RouterStatus> {
-    if (!this.server) return Promise.resolve(this.status())
+  async stop(): Promise<RouterStatus> {
+    const starting = this.startPromise
     const server = this.server
+    if (!server) {
+      await starting?.catch(() => undefined)
+      return this.status()
+    }
     this.server = null
     this.startedAt = null
     this.activeRequests.cancelAll()
-    return new Promise((resolve) =>
-      server.close(() => {
-        const status = this.status()
-        this.emit("changed", { type: "router-stopped", status })
-        resolve(status)
-      }),
-    )
+    await starting?.catch(() => undefined)
+    if (server.listening) await closeServer(server)
+    const status = this.status()
+    this.emit("changed", { type: "router-stopped", status })
+    return status
   }
 
   status(): RouterStatus {
     const config = this.getConfig()
     return {
-      running: Boolean(this.server),
+      running: Boolean(this.server && this.startedAt),
       port: config.routerPort,
       startedAt: this.startedAt,
       routeFormat: `http://127.0.0.1:${config.routerPort}/{provider}/v1/responses`,
@@ -478,10 +506,16 @@ class ProxyService extends EventEmitter {
     })
     upstream.on("end", () => {
       const responseText = Buffer.concat(responseChunks).toString("utf8")
-      const complete = contextObserver?.completeResponse()
-      const responseJson = complete?.response || tryJson(responseText)
-      const usage = usageFrom(complete?.usage || responseJson.usage)
+      const parsedResponse = tryJson(responseText)
       const statusCode = upstream.statusCode || 502
+      const active = activeId ? this.activeRequests.get(activeId) : undefined
+      const canPersistContext = !activeId || Boolean(active && !active.cancelled && active.status !== "timed_out")
+      const complete = contextObserver?.completeResponse(
+        isJsonObject(parsedResponse) ? parsedResponse : undefined,
+        canPersistContext && statusCode >= 200 && statusCode < 400,
+      )
+      const responseJson = complete?.response || parsedResponse
+      const usage = usageFrom(complete?.usage || responseJson.usage)
       const upstreamError = statusCode >= 400 ? getUpstreamError(responseJson) : null
       this.logStore.finalize(logId, {
         status: statusCode >= 400 ? "upstream_error" : "completed",
@@ -590,6 +624,13 @@ function makeRequest(
     request.end(body)
   })
 }
+
+function closeServer(server: http.Server): Promise<void> {
+  return new Promise((resolve, reject) => {
+    server.close((error?: Error) => (error ? reject(error) : resolve()))
+  })
+}
+
 function logOutbound(outbound: OutboundRequest): Record<string, unknown> {
   return { headers: redactHeaders(outbound.headers), body: outbound.body, method: outbound.method, path: outbound.path }
 }

@@ -3,10 +3,10 @@ import { mkdtemp } from "node:fs/promises"
 import * as http from "node:http"
 import * as os from "node:os"
 import * as path from "node:path"
-import type { RouterConfig } from "../backend/core/types"
-import { ProxyService } from "../backend/router/proxy-service"
-import { RequestLogStore } from "../backend/storage/request-log"
-import { ResponseContextStore } from "../backend/storage/response-context"
+import type { RouterConfig } from "../core/types"
+import { ProxyService } from "../router/proxy-service"
+import { RequestLogStore } from "../storage/request-log"
+import { ResponseContextStore } from "../storage/response-context"
 
 test("Given an in-flight request, When the router stops, Then the request is cancelled and no active entry remains", async () => {
   const upstream = http.createServer(() => undefined)

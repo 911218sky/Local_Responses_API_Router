@@ -69,6 +69,13 @@ export interface RequestLog {
   error?: string
   usage?: Record<string, unknown>
   transformMode?: string
+  inbound?: Record<string, unknown>
+  outbound?: Record<string, unknown>
+  response?: Record<string, unknown>
+  transform?: {
+    mode: "continuation" | "initial" | "passthrough"
+    operations: Array<{ type: string; scope: string; label: string; from?: string; to?: string }>
+  }
 }
 
 export interface Session {
@@ -80,6 +87,32 @@ export interface Session {
   updatedAt: string
   responseIds: string[]
   requestCount?: number
+}
+
+export interface SessionContextSummary {
+  responseId: string
+  sessionId: string | null
+  sourceInteractionId: string | null
+  parentResponseId: string | null
+  imported: boolean
+  label: string | null
+  provider: Provider | null
+  logId: string | null
+  createdAt: string
+  updatedAt: string
+  inputItemCount: number
+  outputItemCount: number
+}
+
+export interface SessionReplay {
+  context: SessionContextSummary
+  history: unknown[]
+}
+
+export interface SessionDetail extends Session {
+  logs: RequestLog[]
+  contexts: SessionContextSummary[]
+  replay: SessionReplay | null
 }
 
 export interface DashboardState {

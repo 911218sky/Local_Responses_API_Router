@@ -32,6 +32,13 @@ primary actions and icon controls so the dense data views remain easy to scan.
 | `--color-success` | `#a8f0c6` | Running and healthy states |
 | `--color-danger` | `#ffb4b4` | Errors and destructive actions |
 | `--color-warning` | `#ffe9a8` | Warnings and retry states |
+| `--color-diff-added` | `#e4f5e7` | Added request fields in the session diff |
+| `--color-diff-added-border` | `#87b98d` | Added diff marker boundary |
+| `--color-diff-added-ink` | `#235b2d` | Added diff text |
+| `--color-diff-removed` | `#f9e6e4` | Removed request fields in the session diff |
+| `--color-diff-removed-border` | `#d4a09b` | Removed diff marker boundary |
+| `--color-diff-removed-ink` | `#7e2f2b` | Removed diff text |
+| `--color-diff-unchanged` | `#eff3f8` | Unchanged request fields in the session diff |
 | `--color-on-primary` | `#1a1a1a` | Text on primary controls |
 | `--color-on-primary-muted` | `#5a4822` | Supporting text on primary controls |
 | `--color-on-success` | `#163b29` | Text on success states |
@@ -48,7 +55,9 @@ token so dark surfaces do not acquire bright outlines.
 
 ### Type And Space
 
-- Font stack: `Inter`, `Segoe UI`, system sans-serif.
+- Font stack: `Noto Sans TC`, `Noto Sans SC`, `Inter`, `Segoe UI`, system sans-serif.
+  The local Traditional and Simplified Chinese font subsets keep interface
+  labels readable when a host does not provide a CJK system font.
 - Display: 24px / 700; section heading: 16px / 700; body: 14px / 1.45.
 - Spacing unit: 4px. Layout gaps use 8px, 12px, 16px, 20px, 24px, or 32px.
 - Border: 2px for controls and 3px for primary framed surfaces.
@@ -73,6 +82,9 @@ token so dark surfaces do not acquire bright outlines.
 - `input`: blue-gray field with an ink border and visible focus outline.
 - `toggle`: framed track with a clear ink thumb and green checked state.
 - `dialog`: high-elevation surface with an opaque ink backdrop.
+- `split-diff`: equal-width request columns with sticky headings; removed values
+  use the red ramp, added values use the green ramp, and unchanged rows stay
+  visually quiet. Payload cells render only after the request detail is opened.
 
 ## 6. Accessibility Constraints
 

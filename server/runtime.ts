@@ -1,12 +1,12 @@
-import { appData, loadConfig, normalizeProvider, saveConfig } from "./backend/config/data-store"
-import { objectFromUnknown, type RouterConfig } from "./backend/core/types"
-import { updateDashboardAuth } from "./backend/dashboard/auth"
-import { publicConfig, publicProvider, validateProvider } from "./backend/dashboard/providers"
-import { listMissingContinuations, listSessions, reconcileStoredSessions } from "./backend/dashboard/sessions"
-import { ProxyService } from "./backend/router/proxy-service"
-import { importCopilotTranscript } from "./backend/router/transcript-importer"
-import { RequestLogStore } from "./backend/storage/request-log"
-import { ResponseContextStore } from "./backend/storage/response-context"
+import { appData, database, loadConfig, normalizeProvider, saveConfig } from "./config/data-store"
+import { objectFromUnknown, type RouterConfig } from "./core/types"
+import { updateDashboardAuth } from "./dashboard/auth"
+import { publicConfig, publicProvider, validateProvider } from "./dashboard/providers"
+import { listMissingContinuations, listSessions, reconcileStoredSessions } from "./dashboard/sessions"
+import { ProxyService } from "./router/proxy-service"
+import { importCopilotTranscript } from "./router/transcript-importer"
+import { RequestLogStore } from "./storage/request-log"
+import { ResponseContextStore } from "./storage/response-context"
 
 export class RouterRuntime {
   private config: RouterConfig
@@ -16,8 +16,8 @@ export class RouterRuntime {
 
   constructor() {
     this.config = loadConfig()
-    this.logs = new RequestLogStore(appData, () => this.config.recordLogs)
-    this.contexts = new ResponseContextStore(appData, () => this.config.persistResponseContexts)
+    this.logs = new RequestLogStore(appData, () => this.config.recordLogs, database)
+    this.contexts = new ResponseContextStore(appData, () => this.config.persistResponseContexts, database)
     reconcileStoredSessions(this.logs, this.contexts)
     this.router = new ProxyService(() => this.config, this.logs, this.contexts)
     if (this.config.startRouterOnLaunch) void this.router.start()
@@ -108,8 +108,10 @@ export class RouterRuntime {
   }
 
   clearTrafficData(): void {
-    this.logs.clear()
-    this.contexts.clear()
+    const contextCount = this.contexts.contexts.length
+    database.clearTrafficData()
+    this.logs.clearAfterDatabaseReset()
+    this.contexts.clearAfterDatabaseReset(contextCount)
   }
 
   importContext(value: Record<string, unknown>): object {

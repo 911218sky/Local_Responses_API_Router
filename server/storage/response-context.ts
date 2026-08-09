@@ -19,9 +19,9 @@ class ResponseContextStore extends EventEmitter {
   readonly maxEntries: number
   readonly volatileContexts: Map<string, ResponseContext>
 
-  constructor(dataDirectory: string, shouldPersist: () => boolean = () => true) {
+  constructor(dataDirectory: string, shouldPersist: () => boolean = () => true, database?: RouterDatabase) {
     super()
-    this.database = new RouterDatabase(dataDirectory)
+    this.database = database || new RouterDatabase(dataDirectory)
     this.legacyPath = path.join(dataDirectory, "response-contexts.json")
     this.shouldPersist = shouldPersist
     this.maxEntries = 500
@@ -62,7 +62,7 @@ class ResponseContextStore extends EventEmitter {
   }
 
   getSessionReplay(
-    sessionId: string,
+    sessionId: string | null,
   ): { readonly context: ResponseContextSummary; readonly history: JsonArray } | null {
     const contexts = this.contexts.filter((context) => context.sessionId === sessionId)
     if (!contexts.length) return null
@@ -155,7 +155,11 @@ class ResponseContextStore extends EventEmitter {
     if (!removed.length) return removed
     this.database.deleteContextsByLogIds(logIds)
     for (const context of removed) this.volatileContexts.delete(context.responseId)
-    this.emit("changed", { type: "deleted-many", count: removed.length })
+    this.emit("changed", {
+      type: "deleted-many",
+      count: removed.length,
+      responseIds: removed.map((context) => context.responseId),
+    })
     return removed
   }
 
@@ -164,7 +168,11 @@ class ResponseContextStore extends EventEmitter {
     if (!removed.length) return removed
     this.database.deleteContextsBySession(sessionId)
     for (const context of removed) this.volatileContexts.delete(context.responseId)
-    this.emit("changed", { type: "deleted-many", count: removed.length })
+    this.emit("changed", {
+      type: "deleted-many",
+      count: removed.length,
+      responseIds: removed.map((context) => context.responseId),
+    })
     return removed
   }
 
@@ -174,6 +182,11 @@ class ResponseContextStore extends EventEmitter {
     this.volatileContexts.clear()
     this.emit("changed", { type: "cleared", count: removed.length })
     return removed
+  }
+
+  clearAfterDatabaseReset(count = this.contexts.length): void {
+    this.volatileContexts.clear()
+    this.emit("changed", { type: "cleared", count })
   }
 
   summary(context: ResponseContext): ResponseContextSummary {
@@ -193,7 +206,7 @@ class ResponseContextStore extends EventEmitter {
     }
   }
 
-  listBySession(sessionId: string): ResponseContextSummary[] {
+  listBySession(sessionId: string | null): ResponseContextSummary[] {
     return this.contexts.filter((context) => context.sessionId === sessionId).map((context) => this.summary(context))
   }
 
@@ -220,10 +233,17 @@ class ResponseContextStore extends EventEmitter {
     if (this.shouldPersist()) {
       this.savePersisted(context)
       this.volatileContexts.delete(context.responseId)
-      this.database.trimContexts(this.maxEntries)
+      const evicted = this.database.trimContexts(this.maxEntries)
+      for (const responseId of evicted) this.volatileContexts.delete(responseId)
+      if (evicted.length) this.emit("changed", { type: "deleted-many", count: evicted.length, responseIds: evicted })
       return
     }
     this.volatileContexts.set(context.responseId, context)
+    while (this.volatileContexts.size > this.maxEntries) {
+      const oldest = this.volatileContexts.keys().next().value
+      if (typeof oldest !== "string") break
+      this.volatileContexts.delete(oldest)
+    }
   }
 
   savePersisted(context: ResponseContext): void {

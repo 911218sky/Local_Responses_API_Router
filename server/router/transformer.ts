@@ -17,6 +17,8 @@ const installationId = generateUUID()
 // Stores fully expanded HTTP history by upstream response id. This is required because
 // Codex Responses Lite HTTP does not accept previous_response_id continuations.
 const responseContextsById = new Map<string, JsonArray>()
+const MAX_RESPONSE_CONTEXT_CACHE_ENTRIES = 500
+const cacheSubscriptions = new WeakSet<ResponseContextStore>()
 
 const DEFAULT_CODEX_PROFILE: CodexProfile = {
   userAgent: "Codex Desktop/0.146.0-alpha.3.1 (Windows 10.0.26200; x86_64) unknown (Codex Desktop; 26.721.41059)",
@@ -61,6 +63,7 @@ function transformToCodex(
   readonly previousResponseId: string | null
 } {
   const activeProfile = resolveProfile(profile)
+  bindResponseContextCache(contextStore)
   const bodyBuffer = toBuffer(incomingBody)
   let requestBody: JsonObject
 
@@ -124,7 +127,9 @@ function transformToCodex(
     const stored = contextStore.get(requestBody.previous_response_id)
     const previousContext = stored
       ? contextStore.getHistory(requestBody.previous_response_id)
-      : responseContextsById.get(requestBody.previous_response_id)
+      : contextStore.shouldPersist()
+        ? undefined
+        : responseContextsById.get(requestBody.previous_response_id)
     if (previousContext) {
       sessionId = stored?.sessionId || sessionId
       threadId = stored?.sessionId || threadId
@@ -318,12 +323,51 @@ function recordResponseContext(
   if (!responseId || !Array.isArray(requestInput) || !Array.isArray(responseOutput)) {
     throw new Error("A response id, request input, and response output are required.")
   }
-  responseContextsById.set(responseId, [...requestInput, ...responseOutput])
+  bindResponseContextCache(contextStore)
+  const history = [...requestInput, ...responseOutput]
+  const previous = responseContextsById.get(responseId)
+  if (previous && JSON.stringify(previous) === JSON.stringify(history) && contextStore.get(responseId)) return
+  responseContextsById.delete(responseId)
+  responseContextsById.set(responseId, history)
+  trimResponseContextCache()
   contextStore.save(responseId, requestInput, responseOutput, metadata)
 }
 
 function resetResponseContexts(): void {
   responseContextsById.clear()
+}
+
+function responseContextCacheSize(): number {
+  return responseContextsById.size
+}
+
+function bindResponseContextCache(contextStore: ResponseContextStore): void {
+  if (cacheSubscriptions.has(contextStore)) return
+  cacheSubscriptions.add(contextStore)
+  contextStore.on("changed", (value: unknown) => {
+    if (!isJsonObject(value)) return
+    if (value.type === "cleared") {
+      responseContextsById.clear()
+      return
+    }
+    const context = isJsonObject(value.context) ? value.context : null
+    if (value.type === "deleted" && typeof context?.responseId === "string") {
+      responseContextsById.delete(context.responseId)
+      return
+    }
+    if (value.type !== "deleted-many" || !isJsonArray(value.responseIds)) return
+    for (const responseId of value.responseIds) {
+      if (typeof responseId === "string") responseContextsById.delete(responseId)
+    }
+  })
+}
+
+function trimResponseContextCache(): void {
+  while (responseContextsById.size > MAX_RESPONSE_CONTEXT_CACHE_ENTRIES) {
+    const oldest = responseContextsById.keys().next().value
+    if (typeof oldest !== "string") return
+    responseContextsById.delete(oldest)
+  }
 }
 
 function headerString(value: Headers[string]): string {
@@ -347,5 +391,6 @@ export {
   DEFAULT_CODEX_PROFILE,
   recordResponseContext,
   resetResponseContexts,
+  responseContextCacheSize,
   transformToCodex,
 }

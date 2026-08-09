@@ -14,6 +14,12 @@ export interface SessionWithRequestCount extends SessionSummary {
   requestCount: number
 }
 
+export const UNKNOWN_SESSION_KEY = "unknown"
+
+export function matchesSessionKey(sessionId: string | null | undefined, sessionKey: string): boolean {
+  return sessionKey === UNKNOWN_SESSION_KEY ? !sessionId : sessionId === sessionKey
+}
+
 export function listMissingContinuations(logs: RequestLogStore, contexts: ResponseContextStore): MissingContinuation[] {
   const unique = new Map<string, MissingContinuation>()
   for (const log of logs.logs) {
@@ -32,9 +38,9 @@ export function listMissingContinuations(logs: RequestLogStore, contexts: Respon
 export function listSessions(logs: RequestLogStore, contexts: ResponseContextStore): SessionWithRequestCount[] {
   const sessions = new Map<string, SessionWithRequestCount>()
   for (const contextSession of contexts.listSessions())
-    sessions.set(contextSession.sessionId || "unknown", { ...contextSession, requestCount: 0 })
+    sessions.set(contextSession.sessionId || UNKNOWN_SESSION_KEY, { ...contextSession, requestCount: 0 })
   for (const log of logs.list()) {
-    const sessionId = log.sessionId || "unknown"
+    const sessionId = log.sessionId || UNKNOWN_SESSION_KEY
     const current: SessionWithRequestCount = sessions.get(sessionId) || {
       sessionId: log.sessionId || null,
       provider: log.provider || null,

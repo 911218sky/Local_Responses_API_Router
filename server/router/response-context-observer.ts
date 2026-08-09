@@ -7,7 +7,10 @@ import { parseSse } from "./http-utils"
 import { recordResponseContext } from "./transformer"
 
 export interface ResponseContextObserver {
-  completeResponse(): {
+  completeResponse(
+    response?: JsonObject,
+    persist?: boolean,
+  ): {
     readonly response: JsonObject | undefined
     readonly usage: JsonObject | undefined
   }
@@ -25,6 +28,7 @@ export function createResponseContextObserver(
   let responseId: string | undefined
   let completedResponse: JsonObject | undefined
   const outputItems = new Map<number, JsonObject>()
+  let saved = false
 
   upstream.on("data", (chunk) => {
     sseBuffer += chunk.toString("utf8")
@@ -71,26 +75,35 @@ export function createResponseContextObserver(
           if (event.type.endsWith(".done")) call.status = "completed"
         }
       }
-      if (responseId && outputItems.size) {
-        const output = [...outputItems.entries()].sort(([left], [right]) => left - right).map(([, item]) => item)
-        recordResponseContext(responseId, requestInput, output, contextStore, contextMetadata)
-        if (event.type === "response.function_call_arguments.done" || event.type === "response.completed") {
-          logStore.update(logId, {
-            responseContext: {
-              responseId,
-              outputItemCount: output.length,
-              persisted: Boolean(contextStore),
-              updatedAt: new Date().toISOString(),
-            },
-          })
-        }
-      }
     }
   })
   return {
-    completeResponse: (): { readonly response: JsonObject | undefined; readonly usage: JsonObject | undefined } => ({
-      response: completedResponse,
-      usage: completedResponse && isJsonObject(completedResponse.usage) ? completedResponse.usage : undefined,
-    }),
+    completeResponse: (
+      response?: JsonObject,
+      persist = true,
+    ): { readonly response: JsonObject | undefined; readonly usage: JsonObject | undefined } => {
+      const finalResponse = completedResponse || response
+      const finalResponseId = typeof finalResponse?.id === "string" ? finalResponse.id : responseId
+      const finalOutput =
+        finalResponse && isJsonArray(finalResponse.output)
+          ? finalResponse.output
+          : [...outputItems.entries()].sort(([left], [right]) => left - right).map(([, item]) => item)
+      if (persist && !saved && finalResponseId && finalOutput) {
+        saved = true
+        recordResponseContext(finalResponseId, requestInput, finalOutput, contextStore, contextMetadata)
+        logStore.update(logId, {
+          responseContext: {
+            responseId: finalResponseId,
+            outputItemCount: finalOutput.length,
+            persisted: true,
+            updatedAt: new Date().toISOString(),
+          },
+        })
+      }
+      return {
+        response: finalResponse,
+        usage: finalResponse && isJsonObject(finalResponse.usage) ? finalResponse.usage : undefined,
+      }
+    },
   }
 }

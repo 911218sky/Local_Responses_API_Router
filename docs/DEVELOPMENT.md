@@ -94,7 +94,7 @@ curl http://127.0.0.1:38128/healthz
 
 ## 修改資料層
 
-- SQLite 實作位於 `server/backend/storage/sqlite-store.ts`。
+- SQLite 實作位於 `server/storage/sqlite-store.ts`。
 - migration 必須透過具名 marker 執行，並可安全重複啟動。
 - migration 前先備份真實資料，再使用副本測試。
 - 新舊容器同時運行時，不得讓較舊 context 覆蓋較新 context。

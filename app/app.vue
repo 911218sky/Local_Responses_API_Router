@@ -7,6 +7,7 @@ import ProvidersView from "~/components/ProvidersView.vue"
 import SettingsView from "~/components/SettingsView.vue"
 import TrafficView from "~/components/TrafficView.vue"
 import { useDashboard } from "~/composables/useDashboard"
+import { useLocale } from "~/composables/useLocale"
 
 type Section = "overview" | "providers" | "traffic" | "settings"
 
@@ -21,20 +22,35 @@ const theme = useCookie<Theme>("codex-router-theme", {
   sameSite: "lax",
 })
 const dark = computed(() => theme.value === "dark")
-const locale = ref("zh-Hant")
-const labels: Record<Section, { title: string; subtitle: string }> = {
-  overview: { title: "總覽", subtitle: "本機 Codex 相容路由服務" },
-  providers: { title: "提供商", subtitle: "管理上游服務與本機路由識別" },
-  traffic: { title: "工作階段", subtitle: "檢視請求紀錄與已保存的上下文" },
-  settings: { title: "設定", subtitle: "調整 Router 行為與請求識別" },
+const { locale, t } = useLocale()
+const sectionMessageKeys: Record<Section, { title: string; subtitle: string }> = {
+  overview: { title: "overview", subtitle: "overviewSubtitle" },
+  providers: { title: "providers", subtitle: "providersSubtitle" },
+  traffic: { title: "traffic", subtitle: "trafficSubtitle" },
+  settings: { title: "settings", subtitle: "settingsSubtitle" },
 }
-const current = computed(() => labels[section.value])
+const labels = computed(
+  () =>
+    Object.fromEntries(
+      (Object.keys(sectionMessageKeys) as Section[]).map((key) => [
+        key,
+        {
+          title: t(sectionMessageKeys[key].title),
+          subtitle: t(sectionMessageKeys[key].subtitle),
+        },
+      ]),
+    ) as Record<Section, { title: string; subtitle: string }>,
+)
+const current = computed(() => {
+  return labels.value[section.value]
+})
 const running = computed(() => dashboard.router.value?.running === true)
 
 useHead(() => ({
   htmlAttrs: {
     class: dark.value ? "dark" : undefined,
     "data-theme": theme.value,
+    lang: locale.value,
   },
 }))
 
@@ -52,9 +68,9 @@ function stopRouterAndLeave(): void {
     <aside class="sidebar">
       <div class="brand">
         <span class="brand-mark">CR</span>
-        <div><strong>Codex Router</strong><small>LOCAL CONTROL</small></div>
+        <div><strong>Codex Router</strong><small>{{ t("localControl") }}</small></div>
       </div>
-      <nav class="nav-list" aria-label="Dashboard navigation">
+      <nav class="nav-list" :aria-label="t('dashboardNavigation')">
         <button v-for="item in (Object.keys(labels) as Section[])" :key="item" class="nav-item" :class="{ active: section === item }" type="button" @click="section = item">
           <Home v-if="item === 'overview'" :size="17" aria-hidden="true" />
           <Server v-else-if="item === 'providers'" :size="17" aria-hidden="true" />
@@ -65,11 +81,11 @@ function stopRouterAndLeave(): void {
         </button>
       </nav>
       <div class="sidebar-footer">
-        <span class="recording"><span class="status-dot" :class="{ on: dashboard.state.value?.logging }" />{{ dashboard.state.value?.logging ? "紀錄開啟" : "紀錄關閉" }}</span>
+        <span class="recording"><span class="status-dot" :class="{ on: dashboard.state.value?.logging }" />{{ dashboard.state.value?.logging ? t("loggingOn") : t("loggingOff") }}</span>
         <div class="footer-actions">
-          <label class="language-control"><Languages :size="15" aria-hidden="true" /><select v-model="locale" aria-label="語言"><option value="zh-Hant">繁體中文</option><option value="zh-Hans">简体中文</option><option value="en">English</option></select></label>
-          <button class="icon-button" type="button" :title="dark ? '切換淺色模式' : '切換深色模式'" :aria-label="dark ? '切換淺色模式' : '切換深色模式'" :aria-pressed="dark" @click="toggleTheme"><Sun v-if="dark" :size="17" /><Moon v-else :size="17" /></button>
-          <button class="icon-button danger-button" type="button" title="停止 Router" aria-label="停止 Router" :disabled="!running" @click="stopRouterAndLeave"><Power :size="17" /></button>
+          <label class="language-control"><Languages :size="15" aria-hidden="true" /><select v-model="locale" :aria-label="t('language')"><option value="zh-Hant">繁體中文</option><option value="zh-Hans">简体中文</option><option value="en">English</option></select></label>
+          <button class="icon-button" type="button" :title="dark ? t('lightTheme') : t('darkTheme')" :aria-label="dark ? t('lightTheme') : t('darkTheme')" :aria-pressed="dark" @click="toggleTheme"><Sun v-if="dark" :size="17" /><Moon v-else :size="17" /></button>
+          <button class="icon-button danger-button" type="button" :title="t('stopRouter')" :aria-label="t('stopRouter')" :disabled="!running" @click="stopRouterAndLeave"><Power :size="17" /></button>
         </div>
       </div>
     </aside>
@@ -77,8 +93,8 @@ function stopRouterAndLeave(): void {
       <header class="topbar">
         <div><h1>{{ current.title }}</h1><p>{{ current.subtitle }}</p></div>
         <div class="top-actions">
-          <span class="status-badge" :class="running ? 'running' : 'stopped'">{{ running ? "Router 執行中" : "Router 已停止" }}</span>
-          <button class="primary-button" type="button" :disabled="dashboard.busy.value" @click="dashboard.toggleRouter"><Power :size="16" />{{ running ? "停止 Router" : "啟動 Router" }}</button>
+          <span class="status-badge" :class="running ? 'running' : 'stopped'">{{ running ? t("routerRunning") : t("routerStopped") }}</span>
+          <button class="primary-button" type="button" :disabled="dashboard.busy.value" @click="dashboard.toggleRouter"><Power :size="16" />{{ running ? t("stopRouter") : t("startRouter") }}</button>
         </div>
       </header>
       <p v-if="dashboard.error.value" class="global-error" role="alert">{{ dashboard.error.value }}</p>

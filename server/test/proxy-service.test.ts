@@ -5,15 +5,15 @@ import * as fs from "node:fs"
 import * as http from "node:http"
 import * as os from "node:os"
 import * as path from "node:path"
-import { isJsonArray, isJsonObject, type JsonArray, objectFromUnknown, type RouterConfig } from "../backend/core/types"
-import { isAllowedDashboardMutation } from "../backend/dashboard/auth"
-import { publicConfig, publicProvider, validateProvider } from "../backend/dashboard/providers"
-import { isCapacityError, ProxyService } from "../backend/router/proxy-service"
-import { importCopilotTranscript } from "../backend/router/transcript-importer"
-import { applyCodexProfileHeaders, resetResponseContexts, transformToCodex } from "../backend/router/transformer"
-import { RequestLogStore } from "../backend/storage/request-log"
-import { ResponseContextStore } from "../backend/storage/response-context"
-import { RouterDatabase } from "../backend/storage/sqlite-store"
+import { isJsonArray, isJsonObject, type JsonArray, objectFromUnknown, type RouterConfig } from "../core/types"
+import { isAllowedDashboardMutation } from "../dashboard/auth"
+import { publicConfig, publicProvider, validateProvider } from "../dashboard/providers"
+import { isCapacityError, ProxyService } from "../router/proxy-service"
+import { importCopilotTranscript } from "../router/transcript-importer"
+import { applyCodexProfileHeaders, resetResponseContexts, transformToCodex } from "../router/transformer"
+import { RequestLogStore } from "../storage/request-log"
+import { ResponseContextStore } from "../storage/response-context"
+import { RouterDatabase } from "../storage/sqlite-store"
 
 const upstreamPort = 3124
 const routerPort = 3123
@@ -472,7 +472,7 @@ test("Given configured upstream providers, When the router handles compatible re
     fs.writeFileSync(legacyConfigPath, JSON.stringify({ providers: [{ id: "after" }] }))
     const laterLegacyTime = new Date(Date.now() + 1000)
     fs.utimesSync(legacyConfigPath, laterLegacyTime, laterLegacyTime)
-    const syncResult = spawnSync(process.execPath, ["server/backend/storage/legacy-sync.ts"], {
+    const syncResult = spawnSync(process.execPath, ["server/storage/legacy-sync.ts"], {
       cwd: process.cwd(),
       env: { ...process.env, CODEX_ROUTER_DATA_DIR: dataDirectory },
     })
@@ -487,7 +487,7 @@ test("Given configured upstream providers, When the router handles compatible re
     migrationDatabase.saveSetting("config", { providers: [{ id: "target" }] })
     const earlierLegacyTime = new Date(Date.now() - 1000)
     fs.utimesSync(legacyConfigPath, earlierLegacyTime, earlierLegacyTime)
-    const secondSyncResult = spawnSync(process.execPath, ["server/backend/storage/legacy-sync.ts"], {
+    const secondSyncResult = spawnSync(process.execPath, ["server/storage/legacy-sync.ts"], {
       cwd: process.cwd(),
       env: { ...process.env, CODEX_ROUTER_DATA_DIR: dataDirectory },
     })

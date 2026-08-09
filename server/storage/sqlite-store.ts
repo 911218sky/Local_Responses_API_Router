@@ -7,6 +7,7 @@ process.umask(0o077)
 
 class RouterDatabase {
   readonly database: Database
+  private transactionDepth = 0
 
   constructor(dataDirectory: string) {
     fs.mkdirSync(dataDirectory, { recursive: true, mode: 0o700 })
@@ -93,6 +94,20 @@ class RouterDatabase {
     )
   }
 
+  runTransaction(action: () => void): void {
+    if (this.transactionDepth > 0) {
+      action()
+      return
+    }
+    this.transactionDepth += 1
+    try {
+      const transaction = this.database.transaction(action)
+      transaction()
+    } finally {
+      this.transactionDepth -= 1
+    }
+  }
+
   private saveSettingAt(key: string, value: unknown, updatedAt: string): void {
     this.database.run(
       `
@@ -132,6 +147,13 @@ class RouterDatabase {
 
   clearLogs(): void {
     this.database.run("DELETE FROM request_logs")
+  }
+
+  clearTrafficData(): void {
+    this.runTransaction(() => {
+      this.database.run("DELETE FROM request_logs")
+      this.database.run("DELETE FROM response_contexts")
+    })
   }
 
   trimLogs(maxEntries: number): void {
@@ -175,10 +197,9 @@ class RouterDatabase {
 
   deleteContextsByLogIds(logIds: readonly string[]): void {
     const statement = this.database.prepare("DELETE FROM response_contexts WHERE log_id = ?")
-    const transaction = this.database.transaction((ids: readonly string[]) => {
-      for (const id of ids) statement.run(id)
+    this.runTransaction(() => {
+      for (const id of logIds) statement.run(id)
     })
-    transaction(logIds)
   }
 
   deleteContextsBySession(sessionId: string): void {
@@ -189,11 +210,22 @@ class RouterDatabase {
     this.database.run("DELETE FROM response_contexts")
   }
 
-  trimContexts(maxEntries: number): void {
+  trimContexts(maxEntries: number): string[] {
+    const rows: unknown = this.database
+      .query(
+        "SELECT response_id FROM response_contexts WHERE response_id NOT IN (SELECT response_id FROM response_contexts ORDER BY updated_at DESC LIMIT ?)",
+      )
+      .all(maxEntries)
+    const responseIds = Array.isArray(rows)
+      ? rows
+          .map((row) => objectFromUnknown(row).response_id)
+          .filter((responseId): responseId is string => typeof responseId === "string")
+      : []
     this.database.run(
       "DELETE FROM response_contexts WHERE response_id NOT IN (SELECT response_id FROM response_contexts ORDER BY updated_at DESC LIMIT ?)",
       [maxEntries],
     )
+    return responseIds
   }
 }
 

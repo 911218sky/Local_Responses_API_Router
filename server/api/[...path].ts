@@ -8,9 +8,9 @@ import {
   sendNoContent,
   setResponseHeaders,
 } from "h3"
-import { objectFromUnknown } from "../backend/core/types"
-import { isAuthorizedBasicHeader } from "../backend/dashboard/auth"
-import { listSessions } from "../backend/dashboard/sessions"
+import { objectFromUnknown } from "../core/types"
+import { isAuthorizedBasicHeader } from "../dashboard/auth"
+import { listSessions, matchesSessionKey } from "../dashboard/sessions"
 import { getRouterRuntime } from "../runtime"
 
 export default defineEventHandler(async (event) => {
@@ -63,9 +63,12 @@ async function logRoute(event: H3Event, runtime: ReturnType<typeof getRouterRunt
     return log
   }
   if (event.method === "DELETE") {
-    const removed = runtime.logs.remove(decoded)
+    const removed = runtime.logs.get(decoded)
     if (!removed) throw createError({ statusCode: 404, statusMessage: "Log entry not found." })
-    runtime.contexts.removeByLogIds([removed.id])
+    runtime.logs.database.runTransaction(() => {
+      runtime.logs.remove(decoded)
+      runtime.contexts.removeByLogIds([removed.id])
+    })
     return sendNoContent(event)
   }
   throw createError({ statusCode: 405, statusMessage: "Method not allowed." })
@@ -86,15 +89,20 @@ async function contextRoute(
     event.method === "DELETE" &&
     new URL(event.node.req.url || "", "http://localhost").searchParams.get("scope") === "session"
   ) {
-    const removed = runtime.contexts.removeSession(decoded)
-    runtime.logs.removeSession(decoded)
-    for (const context of removed) runtime.logs.detachResponseContext(context.responseId)
-    return { removed: removed.length }
+    let removedCount = 0
+    runtime.contexts.database.runTransaction(() => {
+      removedCount = runtime.contexts.removeSession(decoded).length
+      runtime.logs.removeSession(decoded)
+    })
+    return { removed: removedCount }
   }
   if (event.method === "DELETE") {
-    const removed = runtime.contexts.remove(decoded)
+    const removed = runtime.contexts.get(decoded)
     if (!removed) throw createError({ statusCode: 404, statusMessage: "Response context not found." })
-    runtime.logs.detachResponseContext(removed.responseId)
+    runtime.contexts.database.runTransaction(() => {
+      runtime.contexts.remove(decoded)
+      runtime.logs.detachResponseContext(removed.responseId)
+    })
     return sendNoContent(event)
   }
   throw createError({ statusCode: 405, statusMessage: "Method not allowed." })
@@ -120,12 +128,19 @@ async function awaitBody(event: H3Event): Promise<Record<string, unknown>> {
 
 function sessionRoute(runtime: ReturnType<typeof getRouterRuntime>, id: string): object {
   const decoded = decodeURIComponent(id)
-  const session = listSessions(runtime.logs, runtime.contexts).find((item) => item.sessionId === decoded)
+  const session = listSessions(runtime.logs, runtime.contexts).find((item) =>
+    matchesSessionKey(item.sessionId, decoded),
+  )
   if (!session) throw createError({ statusCode: 404, statusMessage: "Session not found." })
   return {
     ...session,
-    logs: runtime.logs.list().filter((log) => log.sessionId === decoded),
-    replay: runtime.contexts.getSessionReplay(decoded),
+    logs: runtime.logs
+      .list()
+      .filter((log) => matchesSessionKey(log.sessionId, decoded))
+      .map((log) => runtime.logs.get(log.id))
+      .filter((log) => log !== null),
+    contexts: runtime.contexts.listBySession(session.sessionId),
+    replay: runtime.contexts.getSessionReplay(session.sessionId),
   }
 }
 
