@@ -93,5 +93,123 @@ async function save(): Promise<void> {
 </script>
 
 <template>
-  <section class="page-grid"><div class="section-head page-heading"><p>{{ t("settingsHint") }}</p><button class="primary-button" type="button" :disabled="dashboard.busy.value" @click="save">{{ t("saveSettings") }}</button></div><form class="settings-grid" @submit.prevent="save"><section class="surface"><h2>{{ t("serviceBehavior") }}</h2><label>{{ t("retryCount") }}<input v-model.number="draft.retryCount" type="number" min="0" max="100"></label><label>{{ t("capacityRetryCount") }}<input v-model.number="draft.capacityRetryCount" type="number" min="0" max="100"></label><label>{{ t("retryDelay") }}<input v-model.number="draft.retryDelayMs" type="number" min="100" max="30000"></label><label>{{ t("requestTimeout") }}<input v-model.number="draft.activeRequestTimeoutMs" type="number" min="1000" max="3600000"></label><label class="toggle-row"><span><b>{{ t("persistContexts") }}</b><small>{{ t("persistContextsHint") }}</small></span><input v-model="draft.persistResponseContexts" type="checkbox"><i /></label><label class="toggle-row"><span><b>{{ t("startOnLaunch") }}</b><small>{{ t("startOnLaunchHint") }}</small></span><input v-model="draft.startRouterOnLaunch" type="checkbox"><i /></label></section><section class="surface"><h2>{{ t("dashboardAuth") }}</h2><label class="toggle-row"><span><b>{{ t("authEnabled") }}</b><small>{{ t("authHint") }}</small></span><input v-model="draft.dashboardAuthEnabled" type="checkbox"><i /></label><label>{{ t("username") }}<input v-model.trim="draft.dashboardUsername" autocomplete="username"></label><label>{{ t("password") }}<input v-model="draft.dashboardPassword" type="password" autocomplete="new-password" :placeholder="t('keepPassword')"></label></section><section class="surface settings-wide"><h2>{{ t("codexIdentity") }}</h2><label class="toggle-row"><span><b>{{ t("sendUserAgent") }}</b><small>{{ t("userAgentHint") }}</small></span><input v-model="draft.sendUserAgent" type="checkbox"><i /></label><label>{{ t("userAgent") }}<input v-model="draft.userAgent"></label><label class="toggle-row"><span><b>{{ t("sendOriginator") }}</b><small>{{ t("originatorHint") }}</small></span><input v-model="draft.sendOriginator" type="checkbox"><i /></label><label>{{ t("originator") }}<input v-model="draft.originator"></label><label class="toggle-row"><span><b>{{ t("sendBeta") }}</b><small>{{ t("betaHint") }}</small></span><input v-model="draft.sendBetaFeatures" type="checkbox"><i /></label><label>{{ t("betaFeatures") }}<input v-model="draft.betaFeatures"></label><label class="toggle-row"><span><b>{{ t("sendResponsesLite") }}</b><small>{{ t("responsesLiteHint") }}</small></span><input v-model="draft.sendResponsesLite" type="checkbox"><i /></label><label class="toggle-row"><span><b>{{ t("responsesLiteValue") }}</b><small>{{ t("responsesLiteHint") }}</small></span><input v-model="draft.responsesLite" type="checkbox"><i /></label></section></form></section>
+  <section class="page-grid">
+    <div class="section-head page-heading">
+      <p>{{ t("settingsHint") }}</p>
+      <button class="primary-button" type="button" :disabled="dashboard.busy.value" @click="save">
+        {{ t("saveSettings") }}
+      </button>
+    </div>
+    <form class="settings-grid" @submit.prevent="save">
+      <section class="surface">
+        <h2>{{ t("serviceBehavior") }}</h2>
+        <label>
+          {{ t("retryCount") }}
+          <input v-model.number="draft.retryCount" type="number" min="0" max="100">
+        </label>
+        <label>
+          {{ t("capacityRetryCount") }}
+          <input v-model.number="draft.capacityRetryCount" type="number" min="0" max="100">
+        </label>
+        <label>
+          {{ t("retryDelay") }}
+          <input v-model.number="draft.retryDelayMs" type="number" min="100" max="30000">
+        </label>
+        <label>
+          {{ t("requestTimeout") }}
+          <input v-model.number="draft.activeRequestTimeoutMs" type="number" min="1000" max="3600000">
+        </label>
+        <label class="toggle-row">
+          <span>
+            <b>{{ t("persistContexts") }}</b>
+            <small>{{ t("persistContextsHint") }}</small>
+          </span>
+          <input v-model="draft.persistResponseContexts" type="checkbox">
+          <i />
+        </label>
+        <label class="toggle-row">
+          <span>
+            <b>{{ t("startOnLaunch") }}</b>
+            <small>{{ t("startOnLaunchHint") }}</small>
+          </span>
+          <input v-model="draft.startRouterOnLaunch" type="checkbox">
+          <i />
+        </label>
+      </section>
+      <section class="surface">
+        <h2>{{ t("dashboardAuth") }}</h2>
+        <label class="toggle-row">
+          <span>
+            <b>{{ t("authEnabled") }}</b>
+            <small>{{ t("authHint") }}</small>
+          </span>
+          <input v-model="draft.dashboardAuthEnabled" type="checkbox">
+          <i />
+        </label>
+        <label>
+          {{ t("username") }}
+          <input v-model.trim="draft.dashboardUsername" autocomplete="username">
+        </label>
+        <label>
+          {{ t("password") }}
+          <input v-model="draft.dashboardPassword" type="password" autocomplete="new-password" :placeholder="t('keepPassword')">
+        </label>
+      </section>
+      <section class="surface settings-wide">
+        <h2>{{ t("codexIdentity") }}</h2>
+        <label class="toggle-row">
+          <span>
+            <b>{{ t("sendUserAgent") }}</b>
+            <small>{{ t("userAgentHint") }}</small>
+          </span>
+          <input v-model="draft.sendUserAgent" type="checkbox">
+          <i />
+        </label>
+        <label>
+          {{ t("userAgent") }}
+          <input v-model="draft.userAgent">
+        </label>
+        <label class="toggle-row">
+          <span>
+            <b>{{ t("sendOriginator") }}</b>
+            <small>{{ t("originatorHint") }}</small>
+          </span>
+          <input v-model="draft.sendOriginator" type="checkbox">
+          <i />
+        </label>
+        <label>
+          {{ t("originator") }}
+          <input v-model="draft.originator">
+        </label>
+        <label class="toggle-row">
+          <span>
+            <b>{{ t("sendBeta") }}</b>
+            <small>{{ t("betaHint") }}</small>
+          </span>
+          <input v-model="draft.sendBetaFeatures" type="checkbox">
+          <i />
+        </label>
+        <label>
+          {{ t("betaFeatures") }}
+          <input v-model="draft.betaFeatures">
+        </label>
+        <label class="toggle-row">
+          <span>
+            <b>{{ t("sendResponsesLite") }}</b>
+            <small>{{ t("responsesLiteHint") }}</small>
+          </span>
+          <input v-model="draft.sendResponsesLite" type="checkbox">
+          <i />
+        </label>
+        <label class="toggle-row">
+          <span>
+            <b>{{ t("responsesLiteValue") }}</b>
+            <small>{{ t("responsesLiteHint") }}</small>
+          </span>
+          <input v-model="draft.responsesLite" type="checkbox">
+          <i />
+        </label>
+      </section>
+    </form>
+  </section>
 </template>

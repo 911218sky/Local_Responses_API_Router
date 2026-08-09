@@ -9,7 +9,7 @@ import {
   type PayloadDiffPairKind,
 } from "~/utils/dashboard-diff"
 import { changeLabels, formatPayload } from "~/utils/session-detail"
-import { shouldShowSessionLoading, watchSelectedSessionId } from "~/utils/traffic-view-state"
+import { shouldShowSessionLoading, updateExpandedIds, watchSelectedSessionId } from "~/utils/traffic-view-state"
 
 const props = defineProps<{ dashboard: ReturnType<typeof import("~/composables/useDashboard").useDashboard> }>()
 const { t } = useLocale()
@@ -17,6 +17,8 @@ const selected = computed(() => props.dashboard.selectedSession.value)
 const detail = computed(() => props.dashboard.selectedSessionDetail.value)
 const visibleLogs = computed(() => (selected.value ? (detail.value?.logs ?? []) : props.dashboard.logs.value))
 const expandedLogIds = ref(new Set<string>())
+const expandedDiffIds = ref(new Set<string>())
+const expandedResponseIds = ref(new Set<string>())
 const showUnchanged = ref(false)
 interface DiffSummary {
   readonly labels: readonly string[]
@@ -31,7 +33,7 @@ const diffSummaryByLogId = computed(() => {
   const summaries = new Map<string, DiffSummary>()
   for (const log of visibleLogs.value) {
     const allPairs =
-      expandedLogIds.value.has(log.id) && log.inbound && log.outbound
+      expandedDiffIds.value.has(log.id) && log.inbound && log.outbound
         ? buildPayloadDiffPairs(buildPayloadDiffRows(log.inbound, log.outbound))
         : []
     const counts: Record<PayloadDiffPairKind, number> = { changed: 0, removed: 0, added: 0, unchanged: 0 }
@@ -44,6 +46,8 @@ const diffSummaryByLogId = computed(() => {
 
 watchSelectedSessionId(selected, () => {
   expandedLogIds.value = new Set<string>()
+  expandedDiffIds.value = new Set<string>()
+  expandedResponseIds.value = new Set<string>()
 })
 
 function sessionKey(sessionId: string | null): string {
@@ -65,14 +69,31 @@ function diffSummary(logId: string): DiffSummary | undefined {
 function setLogExpanded(logId: string, event: Event): void {
   const target = event.currentTarget
   if (!(target instanceof HTMLDetailsElement)) return
-  const next = new Set(expandedLogIds.value)
-  if (target.open) next.add(logId)
-  else next.delete(logId)
-  expandedLogIds.value = next
+  expandedLogIds.value = updateExpandedIds(expandedLogIds.value, logId, target.open)
 }
 
 function isLogExpanded(logId: string): boolean {
   return expandedLogIds.value.has(logId)
+}
+
+function setDiffExpanded(logId: string, event: Event): void {
+  const target = event.currentTarget
+  if (!(target instanceof HTMLDetailsElement)) return
+  expandedDiffIds.value = updateExpandedIds(expandedDiffIds.value, logId, target.open)
+}
+
+function isDiffExpanded(logId: string): boolean {
+  return expandedDiffIds.value.has(logId)
+}
+
+function setResponseExpanded(logId: string, event: Event): void {
+  const target = event.currentTarget
+  if (!(target instanceof HTMLDetailsElement)) return
+  expandedResponseIds.value = updateExpandedIds(expandedResponseIds.value, logId, target.open)
+}
+
+function isResponseExpanded(logId: string): boolean {
+  return expandedResponseIds.value.has(logId)
 }
 </script>
 
@@ -96,7 +117,10 @@ function isLogExpanded(logId: string): boolean {
           @click="dashboard.selectSession(session)"
         >
           <strong>{{ session.label || session.provider?.name || t("unnamedSession") }}</strong>
-          <small>{{ session.count }} {{ t("savedContextCount") }} · {{ session.requestCount ?? 0 }} {{ t("requestCount") }} · {{ sessionKey(session.sessionId) }}</small>
+          <small>
+            {{ session.count }} {{ t("savedContextCount") }} · {{ session.requestCount ?? 0 }}
+            {{ t("requestCount") }} · {{ sessionKey(session.sessionId) }}
+          </small>
         </button>
         <div class="panel-actions">
           <button class="icon-button" type="button" :title="t('refresh')" :aria-label="t('refresh')" @click="dashboard.refresh">
@@ -117,7 +141,9 @@ function isLogExpanded(logId: string): boolean {
           <span class="count">{{ visibleLogs.length }}</span>
         </div>
 
-        <div v-if="shouldShowSessionLoading(dashboard.detailBusy.value, Boolean(detail))" class="empty">{{ t("loadingSession") }}</div>
+        <div v-if="shouldShowSessionLoading(dashboard.detailBusy.value, Boolean(detail))" class="empty">
+          {{ t("loadingSession") }}
+        </div>
         <div v-else-if="selected && detail" class="session-detail">
           <div class="detail-overview">
             <div>
@@ -125,9 +151,18 @@ function isLogExpanded(logId: string): boolean {
               <strong>{{ selected.label || selected.provider?.name || t("unnamedSession") }}</strong>
             </div>
             <div class="detail-metrics">
-              <span><b>{{ detail.contexts.length }}</b> {{ t("savedContexts") }}</span>
-              <span><b>{{ detail.logs.length }}</b> {{ t("requestLogs") }}</span>
-              <span v-if="detail.replay"><b>{{ detail.replay.history.length }}</b> {{ t("replayItems") }}</span>
+              <span>
+                <b>{{ detail.contexts.length }}</b>
+                {{ t("savedContexts") }}
+              </span>
+              <span>
+                <b>{{ detail.logs.length }}</b>
+                {{ t("requestLogs") }}
+              </span>
+              <span v-if="detail.replay">
+                <b>{{ detail.replay.history.length }}</b>
+                {{ t("replayItems") }}
+              </span>
             </div>
           </div>
           <div class="detail-stage-list">
@@ -182,17 +217,20 @@ function isLogExpanded(logId: string): boolean {
         <article v-for="log in visibleLogs" :key="log.id" class="log-row log-detail">
           <div class="log-summary">
             <div>
-            <strong>{{ log.method || t("request") }} {{ log.path || t("unknownPath") }}</strong>
+              <strong>{{ log.method || t("request") }} {{ log.path || t("unknownPath") }}</strong>
               <small>{{ log.provider?.name || t("unknown") }} · {{ new Date(log.createdAt).toLocaleString() }}</small>
             </div>
             <div class="log-meta">
-              <span class="status-badge" :class="statusClass(log.status)">{{ log.status }}</span>
+              <span class="status-badge" :class="statusClass(log.status)">
+                {{ log.status }}
+              </span>
               <span v-if="log.responseStatus">{{ log.responseStatus }}</span>
               <span v-if="log.durationMs">{{ log.durationMs }} ms</span>
             </div>
           </div>
           <details
             v-if="selected && (log.inbound || log.outbound || log.response || log.transform)"
+            :open="isLogExpanded(log.id)"
             @toggle="setLogExpanded(log.id, $event)"
           >
             <summary>
@@ -200,81 +238,117 @@ function isLogExpanded(logId: string): boolean {
               <span>{{ t("viewChanges") }}</span>
             </summary>
             <template v-if="isLogExpanded(log.id)">
-              <section class="detail-stage log-stage">
-                <div class="detail-stage-heading">
+              <details
+                v-if="log.inbound || log.outbound || log.transform"
+                class="detail-stage log-stage"
+                :open="isDiffExpanded(log.id)"
+                @toggle="setDiffExpanded(log.id, $event)"
+              >
+                <summary class="detail-stage-heading">
                   <span class="stage-number">01</span>
                   <div>
                     <strong>{{ t("requestDiff") }}</strong>
                     <small>{{ t("requestDiffHint") }}</small>
                   </div>
-                </div>
-                <div class="change-list" v-if="diffSummary(log.id)?.labels.length">
-                  <b>{{ t("conversionChanges") }}</b>
-                  <span v-for="label in diffSummary(log.id)?.labels ?? []" :key="label" class="change-chip">{{ label }}</span>
-                </div>
-                <div v-if="log.inbound && log.outbound" class="request-diff">
-                  <div class="diff-header">
-                    <span class="diff-header-actions">
-                      <span v-if="diffSummary(log.id)" class="diff-legend" :aria-label="t('changesSummary')">
-                        <span class="diff-legend-item diff-changed">{{ diffSummary(log.id)?.changed }} {{ t("changed") }}</span>
-                        <span class="diff-legend-item diff-removed">{{ diffSummary(log.id)?.removed }} {{ t("removed") }}</span>
-                        <span class="diff-legend-item diff-added">{{ diffSummary(log.id)?.added }} {{ t("added") }}</span>
-                        <span class="diff-legend-item diff-unchanged">{{ diffSummary(log.id)?.unchanged }} {{ t("unchanged") }}</span>
-                      </span>
-                      <button class="link-button diff-context-toggle" type="button" @click="showUnchanged = !showUnchanged">
-                        <EyeOff v-if="showUnchanged" :size="13" aria-hidden="true" />
-                        <Eye v-else :size="13" aria-hidden="true" />
-                        {{ showUnchanged ? t("hideUnchanged") : t("showUnchanged") }}
-                      </button>
+                  <ChevronRight class="summary-chevron" :size="17" aria-hidden="true" />
+                </summary>
+                <template v-if="isDiffExpanded(log.id)">
+                  <div class="change-list" v-if="diffSummary(log.id)?.labels.length">
+                    <b>{{ t("conversionChanges") }}</b>
+                    <span v-for="label in diffSummary(log.id)?.labels ?? []" :key="label" class="change-chip">
+                      {{ label }}
                     </span>
                   </div>
-                  <div class="split-diff" role="table" :aria-label="t('requestDiff')">
-                    <div class="split-diff-heading" role="row">
-                      <span role="columnheader">{{ t("inboundRequest") }}</span>
-                      <span class="split-diff-flow" aria-hidden="true"><ArrowRight :size="18" /></span>
-                      <span role="columnheader">{{ t("outboundRequest") }}</span>
+                  <div v-if="log.inbound && log.outbound" class="request-diff">
+                    <div class="diff-header">
+                      <span class="diff-header-actions">
+                        <span v-if="diffSummary(log.id)" class="diff-legend" :aria-label="t('changesSummary')">
+                          <span class="diff-legend-item diff-changed">
+                            {{ diffSummary(log.id)?.changed }} {{ t("changed") }}
+                          </span>
+                          <span class="diff-legend-item diff-removed">
+                            {{ diffSummary(log.id)?.removed }} {{ t("removed") }}
+                          </span>
+                          <span class="diff-legend-item diff-added">
+                            {{ diffSummary(log.id)?.added }} {{ t("added") }}
+                          </span>
+                          <span class="diff-legend-item diff-unchanged">
+                            {{ diffSummary(log.id)?.unchanged }} {{ t("unchanged") }}
+                          </span>
+                        </span>
+                        <button class="link-button diff-context-toggle" type="button" @click="showUnchanged = !showUnchanged">
+                          <EyeOff v-if="showUnchanged" :size="13" aria-hidden="true" />
+                          <Eye v-else :size="13" aria-hidden="true" />
+                          {{ showUnchanged ? t("hideUnchanged") : t("showUnchanged") }}
+                        </button>
+                      </span>
                     </div>
-                    <div
-                      v-for="pair in diffSummary(log.id)?.pairs ?? []"
-                      :key="`${pair.key}-${pair.kind}`"
-                      class="split-diff-row"
-                      :class="`split-diff-${pair.kind}`"
-                      role="row"
-                    >
-                      <div class="split-diff-cell" :class="{ 'split-diff-empty': !pair.left }" role="cell">
-                        <template v-if="pair.left">
-                          <code>{{ pair.left.key }}</code>
-                          <pre>{{ pair.left.value }}</pre>
-                        </template>
+                    <div class="split-diff" role="table" :aria-label="t('requestDiff')">
+                      <div class="split-diff-heading" role="row">
+                        <span role="columnheader">{{ t("inboundRequest") }}</span>
+                        <span class="split-diff-flow" aria-hidden="true">
+                          <ArrowRight :size="18" />
+                        </span>
+                        <span role="columnheader">{{ t("outboundRequest") }}</span>
                       </div>
-                      <span class="split-diff-flow" aria-hidden="true"><ArrowRight :size="16" /></span>
-                      <div class="split-diff-cell" :class="{ 'split-diff-empty': !pair.right }" role="cell">
-                        <template v-if="pair.right">
-                          <code>{{ pair.right.key }}</code>
-                          <pre>{{ pair.right.value }}</pre>
-                        </template>
+                      <div
+                        v-for="pair in diffSummary(log.id)?.pairs ?? []"
+                        :key="`${pair.key}-${pair.kind}`"
+                        class="split-diff-row"
+                        :class="`split-diff-${pair.kind}`"
+                        role="row"
+                      >
+                        <div class="split-diff-cell" :class="{ 'split-diff-empty': !pair.left }" role="cell">
+                          <template v-if="pair.left">
+                            <code>{{ pair.left.key }}</code>
+                            <pre>{{ pair.left.value }}</pre>
+                          </template>
+                        </div>
+                        <span class="split-diff-flow" aria-hidden="true">
+                          <ArrowRight :size="16" />
+                        </span>
+                        <div class="split-diff-cell" :class="{ 'split-diff-empty': !pair.right }" role="cell">
+                          <template v-if="pair.right">
+                            <code>{{ pair.right.key }}</code>
+                            <pre>{{ pair.right.value }}</pre>
+                          </template>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-                <div v-else class="payload-grid">
-                  <div v-if="log.inbound"><b>{{ t("inboundRequest") }}</b><pre>{{ formatPayload(log.inbound) }}</pre></div>
-                  <div v-if="log.outbound"><b>{{ t("outboundRequest") }}</b><pre>{{ formatPayload(log.outbound) }}</pre></div>
-                </div>
-              </section>
-              <section v-if="log.response" class="detail-stage log-stage upstream-stage">
-                <div class="detail-stage-heading">
+                  <div v-else class="payload-grid">
+                    <div v-if="log.inbound">
+                      <b>{{ t("inboundRequest") }}</b>
+                      <pre>{{ formatPayload(log.inbound) }}</pre>
+                    </div>
+                    <div v-if="log.outbound">
+                      <b>{{ t("outboundRequest") }}</b>
+                      <pre>{{ formatPayload(log.outbound) }}</pre>
+                    </div>
+                  </div>
+                </template>
+              </details>
+              <details
+                v-if="log.response"
+                class="detail-stage log-stage upstream-stage"
+                :open="isResponseExpanded(log.id)"
+                @toggle="setResponseExpanded(log.id, $event)"
+              >
+                <summary class="detail-stage-heading">
                   <span class="stage-number">02</span>
                   <div>
                     <strong>{{ t("upstreamResponse") }}</strong>
                     <small>{{ t("upstreamResponseHint") }}</small>
                   </div>
-                  <span class="stage-count">{{ t("fullPayload") }}</span>
-                </div>
-                <div class="upstream-response">
+                  <span class="detail-stage-actions">
+                    <span class="stage-count">{{ t("fullPayload") }}</span>
+                    <ChevronRight class="summary-chevron" :size="17" aria-hidden="true" />
+                  </span>
+                </summary>
+                <div v-if="isResponseExpanded(log.id)" class="upstream-response">
                   <pre>{{ formatPayload(log.response) }}</pre>
                 </div>
-              </section>
+              </details>
             </template>
           </details>
           <small v-if="log.error" class="form-error">{{ log.error }}</small>

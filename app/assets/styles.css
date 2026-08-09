@@ -2,34 +2,34 @@
 
 :root {
   color-scheme: light;
-  --color-page: #fdfbf7;
-  --color-surface: #ffffff;
-  --color-panel: #faebd7;
-  --color-input: #eff3f8;
-  --color-ink: #1a1a1a;
-  --color-border: #1a1a1a;
-  --color-muted: #4a4a4a;
-  --color-primary: #ffcf7a;
-  --color-primary-hover: #ffc267;
-  --color-success: #a8f0c6;
-  --color-danger: #ffb4b4;
-  --color-danger-hover: #ff9f9f;
-  --color-danger-ink: #991b1b;
-  --color-warning: #ffe9a8;
-  --color-diff-added: #e4f5e7;
-  --color-diff-added-border: #87b98d;
-  --color-diff-added-ink: #235b2d;
-  --color-diff-removed: #f9e6e4;
-  --color-diff-removed-border: #d4a09b;
-  --color-diff-removed-ink: #7e2f2b;
-  --color-diff-unchanged: #eff3f8;
-  --color-on-primary: #1a1a1a;
-  --color-on-primary-muted: #5a4822;
-  --color-on-success: #163b29;
-  --color-on-danger: #5d1717;
-  --color-on-warning: #4e3b00;
-  --color-backdrop: rgba(26, 26, 26, 0.55);
-  --color-shadow: rgba(26, 26, 26, 0.14);
+  --color-page: #f3f6f2;
+  --color-surface: #fbfcfa;
+  --color-panel: #e7eee8;
+  --color-input: #eef3ef;
+  --color-ink: #28302c;
+  --color-border: #69746d;
+  --color-muted: #66716b;
+  --color-primary: #f5ca7c;
+  --color-primary-hover: #efb95e;
+  --color-success: #b8e8c8;
+  --color-danger: #f3bcbc;
+  --color-danger-hover: #eea3a3;
+  --color-danger-ink: #7f2f2f;
+  --color-warning: #f9e6ab;
+  --color-diff-added: #e7f4e9;
+  --color-diff-added-border: #91bd98;
+  --color-diff-added-ink: #2f6138;
+  --color-diff-removed: #f8e9e7;
+  --color-diff-removed-border: #d9aaa4;
+  --color-diff-removed-ink: #813b36;
+  --color-diff-unchanged: #eef3ef;
+  --color-on-primary: #28302c;
+  --color-on-primary-muted: #665126;
+  --color-on-success: #1f4d34;
+  --color-on-danger: #6c2222;
+  --color-on-warning: #5e4908;
+  --color-backdrop: rgba(40, 48, 44, 0.32);
+  --color-shadow: rgba(40, 48, 44, 0.16);
   --radius-control: 6px;
   --radius-panel: 8px;
   --shadow-control: 3px 3px 0 var(--color-ink);
@@ -330,6 +330,13 @@ select:focus-visible {
   color: var(--color-on-danger);
   font-weight: 700;
 }
+.copy-feedback {
+  margin: -8px 30px 0;
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
 .page-grid {
   display: grid;
   gap: 20px;
@@ -530,9 +537,9 @@ code {
 .table-head,
 .table-row {
   display: grid;
-  grid-template-columns: minmax(130px, 1fr) 130px minmax(220px, 1.7fr) 74px 72px 100px;
+  grid-template-columns: minmax(130px, 1fr) 130px minmax(220px, 1.7fr) 74px 72px 140px;
   gap: 12px;
-  min-width: 880px;
+  min-width: 920px;
   align-items: center;
   padding: 13px 16px;
 }
@@ -543,6 +550,18 @@ code {
 }
 .table-row {
   border-top: 2px solid var(--color-border);
+}
+.route-id-cell {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+.route-id-cell code {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .truncate {
   overflow: hidden;
@@ -855,7 +874,7 @@ code {
   justify-content: space-between;
   gap: 14px;
 }
-.log-detail details {
+.log-detail > details {
   padding-top: 9px;
   border-top: 1px solid var(--color-border);
 }
@@ -867,6 +886,16 @@ code {
   color: var(--color-muted);
   font-size: 12px;
   font-weight: 700;
+}
+.log-detail .log-stage > summary {
+  display: grid;
+  padding: 0;
+  color: var(--color-ink);
+}
+.detail-stage-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 .change-list {
   display: flex;
@@ -1206,22 +1235,27 @@ html.dark,
   }
   .split-diff-heading,
   .split-diff-row {
-    grid-template-columns: minmax(0, 1fr) 34px minmax(0, 1fr);
-    min-width: 360px;
+    grid-template-columns: minmax(0, 1fr);
+    min-width: 0;
   }
   .split-diff-heading span:last-child,
   .split-diff-cell:last-child {
-    border-top: 0;
-    border-left: 1px solid var(--color-border);
+    border-top: 1px solid var(--color-border);
+    border-left: 0;
   }
   .split-diff-empty {
     display: block;
   }
   .split-diff-heading .split-diff-flow,
   .split-diff-row .split-diff-flow {
-    border-top: 0;
-    border-left: 2px solid var(--color-border);
-    border-right: 2px solid var(--color-border);
+    min-height: 28px;
+    border-top: 2px solid var(--color-border);
+    border-right: 0;
+    border-bottom: 2px solid var(--color-border);
+    border-left: 0;
+  }
+  .split-diff-flow svg {
+    transform: rotate(90deg);
   }
   .upstream-response pre {
     min-height: 220px;

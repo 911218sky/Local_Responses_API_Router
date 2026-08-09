@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Pencil, Plus, Trash2, X } from "lucide-vue-next"
+import { Check, Copy, Pencil, Plus, Trash2, X } from "lucide-vue-next"
 import { ref } from "vue"
 import { useLocale } from "~/composables/useLocale"
 import type { Provider } from "~/types"
@@ -9,6 +9,9 @@ const dialogOpen = ref(false)
 const editing = ref<Provider | null>(null)
 const form = ref({ name: "", slug: "", baseUrl: "", enabled: true, routeOnly: false })
 const formError = ref("")
+const copyMessage = ref("")
+const copiedProviderId = ref<string | null>(null)
+let copyResetTimer: ReturnType<typeof window.setTimeout> | undefined
 const { t } = useLocale()
 
 function open(provider?: Provider): void {
@@ -41,8 +44,153 @@ async function remove(provider: Provider): Promise<void> {
   if (!window.confirm(`${t("confirmDelete")} "${provider.name}"?`)) return
   await props.dashboard.removeProvider(provider.id)
 }
+
+function routerUrl(provider: Provider): string {
+  const current = window.location
+  const routerPort = props.dashboard.router.value?.port ?? props.dashboard.config.value?.routerPort
+  const localHost = current.hostname === "localhost" || current.hostname === "127.0.0.1" || current.hostname === "::1"
+  const port = localHost ? routerPort : current.port ? Number(current.port) : undefined
+  const defaultPort = (current.protocol === "http:" && port === 80) || (current.protocol === "https:" && port === 443)
+  const host = current.hostname.includes(":") ? `[${current.hostname}]` : current.hostname
+  const authority = port && !defaultPort ? `${host}:${port}` : host
+  return `${current.protocol}//${authority}/${encodeURIComponent(provider.slug)}/v1`
+}
+
+async function copyRouterUrl(provider: Provider): Promise<void> {
+  const value = routerUrl(provider)
+  try {
+    if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(value)
+    else {
+      const input = document.createElement("textarea")
+      input.value = value
+      input.style.position = "fixed"
+      input.style.opacity = "0"
+      document.body.append(input)
+      input.select()
+      if (!document.execCommand("copy")) throw new Error("Clipboard access was denied.")
+      input.remove()
+    }
+    copiedProviderId.value = provider.id
+    copyMessage.value = `${t("copiedRouterUrl")}: ${value}`
+    if (copyResetTimer) window.clearTimeout(copyResetTimer)
+    copyResetTimer = window.setTimeout(() => {
+      copiedProviderId.value = null
+      copyMessage.value = ""
+    }, 1800)
+  } catch {
+    copyMessage.value = t("copyRouterUrlFailed")
+  }
+}
 </script>
 
 <template>
-  <section class="page-grid"><div class="section-head page-heading"><div><p>{{ t("providersHint") }}</p></div><button class="primary-button" type="button" @click="open()"><Plus :size="16" />{{ t("addProvider") }}</button></div><section class="surface table-surface"><div v-if="!dashboard.providers.value.length" class="empty">{{ t("noProviders") }}</div><template v-else><div class="table-head"><span>{{ t("providerName") }}</span><span>{{ t("routeIdentifier") }}</span><span>{{ t("upstreamUrl") }}</span><span>{{ t("status") }}</span><span>{{ t("mode") }}</span><span>{{ t("actions") }}</span></div><div v-for="provider in dashboard.providers.value" :key="provider.id" class="table-row"><strong>{{ provider.name }}</strong><code>{{ provider.slug }}</code><span class="truncate mono">{{ provider.baseUrl }}</span><span class="status-badge" :class="provider.enabled ? 'running' : 'stopped'">{{ provider.enabled ? t("enabled") : t("disabled") }}</span><span>{{ provider.routeOnly ? t("routeOnly") : t("conversion") }}</span><div class="row-actions"><button class="icon-button" type="button" :title="t('edit')" :aria-label="t('edit')" @click="open(provider)"><Pencil :size="15" /></button><button class="icon-button danger-button" type="button" :title="t('delete')" :aria-label="t('delete')" @click="remove(provider)"><Trash2 :size="15" /></button></div></div></template></section><dialog :open="dialogOpen" class="dialog" @close="dialogOpen = false"><form method="dialog" @submit.prevent="save"><div class="dialog-head"><h2>{{ editing ? t("editProvider") : t("addProvider") }}</h2><button class="icon-button" type="button" :aria-label="t('close')" @click="dialogOpen = false"><X :size="16" /></button></div><label>{{ t("providerName") }}<input v-model.trim="form.name" required autocomplete="off"></label><label>{{ t("routeIdentifier") }}<input v-model.trim="form.slug" required pattern="[A-Za-z0-9_-]+" autocomplete="off"></label><label>{{ t("baseUrl") }}<input v-model.trim="form.baseUrl" required type="url" placeholder="https://example.com/v1"></label><label class="toggle-row"><span><b>{{ t("enabled") }}</b><small>{{ t("acceptProvider") }}</small></span><input v-model="form.enabled" type="checkbox"><i /></label><label class="toggle-row"><span><b>{{ t("routeOnly") }}</b><small>{{ t("routeOnlyHint") }}</small></span><input v-model="form.routeOnly" type="checkbox"><i /></label><p v-if="formError" class="form-error" role="alert">{{ formError }}</p><div class="dialog-actions"><button type="button" @click="dialogOpen = false">{{ t("cancelDialog") }}</button><button class="primary-button" type="submit">{{ t("saveProvider") }}</button></div></form></dialog></section>
+  <section class="page-grid">
+    <div class="section-head page-heading">
+      <div>
+        <p>{{ t("providersHint") }}</p>
+      </div>
+      <button class="primary-button" type="button" @click="open()">
+        <Plus :size="16" />
+        {{ t("addProvider") }}
+      </button>
+    </div>
+    <p v-if="copyMessage" class="copy-feedback" role="status" aria-live="polite">{{ copyMessage }}</p>
+    <section class="surface table-surface">
+      <div v-if="!dashboard.providers.value.length" class="empty">{{ t("noProviders") }}</div>
+      <template v-else>
+        <div class="table-head">
+          <span>{{ t("providerName") }}</span>
+          <span>{{ t("routeIdentifier") }}</span>
+          <span>{{ t("upstreamUrl") }}</span>
+          <span>{{ t("status") }}</span>
+          <span>{{ t("mode") }}</span>
+          <span>{{ t("actions") }}</span>
+        </div>
+        <div v-for="provider in dashboard.providers.value" :key="provider.id" class="table-row">
+          <strong>{{ provider.name }}</strong>
+          <div class="route-id-cell">
+            <code>{{ provider.slug }}</code>
+            <button
+              class="icon-button"
+              type="button"
+              :title="copiedProviderId === provider.id ? t('copiedRouterUrl') : t('copyRouterUrl')"
+              :aria-label="copiedProviderId === provider.id ? t('copiedRouterUrl') : t('copyRouterUrl')"
+              @click="copyRouterUrl(provider)"
+            >
+              <Check v-if="copiedProviderId === provider.id" :size="15" />
+              <Copy v-else :size="15" />
+            </button>
+          </div>
+          <span class="truncate mono">{{ provider.baseUrl }}</span>
+          <span class="status-badge" :class="provider.enabled ? 'running' : 'stopped'">
+            {{ provider.enabled ? t("enabled") : t("disabled") }}
+          </span>
+          <span>{{ provider.routeOnly ? t("routeOnly") : t("conversion") }}</span>
+          <div class="row-actions">
+            <button
+              class="icon-button"
+              type="button"
+              :title="t('edit')"
+              :aria-label="t('edit')"
+              @click="open(provider)"
+            >
+              <Pencil :size="15" />
+            </button>
+            <button
+              class="icon-button danger-button"
+              type="button"
+              :title="t('delete')"
+              :aria-label="t('delete')"
+              @click="remove(provider)"
+            >
+              <Trash2 :size="15" />
+            </button>
+          </div>
+        </div>
+      </template>
+    </section>
+    <dialog :open="dialogOpen" class="dialog" @close="dialogOpen = false">
+      <form method="dialog" @submit.prevent="save">
+        <div class="dialog-head">
+          <h2>{{ editing ? t("editProvider") : t("addProvider") }}</h2>
+          <button class="icon-button" type="button" :aria-label="t('close')" @click="dialogOpen = false">
+            <X :size="16" />
+          </button>
+        </div>
+        <label>
+          {{ t("providerName") }}
+          <input v-model.trim="form.name" required autocomplete="off">
+        </label>
+        <label>
+          {{ t("routeIdentifier") }}
+          <input v-model.trim="form.slug" required pattern="[A-Za-z0-9_-]+" autocomplete="off">
+        </label>
+        <label>
+          {{ t("baseUrl") }}
+          <input v-model.trim="form.baseUrl" required type="url" placeholder="https://example.com/v1">
+        </label>
+        <label class="toggle-row">
+          <span>
+            <b>{{ t("enabled") }}</b>
+            <small>{{ t("acceptProvider") }}</small>
+          </span>
+          <input v-model="form.enabled" type="checkbox">
+          <i />
+        </label>
+        <label class="toggle-row">
+          <span>
+            <b>{{ t("routeOnly") }}</b>
+            <small>{{ t("routeOnlyHint") }}</small>
+          </span>
+          <input v-model="form.routeOnly" type="checkbox">
+          <i />
+        </label>
+        <p v-if="formError" class="form-error" role="alert">{{ formError }}</p>
+        <div class="dialog-actions">
+          <button type="button" @click="dialogOpen = false">{{ t("cancelDialog") }}</button>
+          <button class="primary-button" type="submit">{{ t("saveProvider") }}</button>
+        </div>
+      </form>
+    </dialog>
+  </section>
 </template>

@@ -68,7 +68,10 @@ function stopRouterAndLeave(): void {
     <aside class="sidebar">
       <div class="brand">
         <span class="brand-mark">CR</span>
-        <div><strong>Codex Router</strong><small>{{ t("localControl") }}</small></div>
+        <div>
+          <strong>Codex Router</strong>
+          <small>{{ t("localControl") }}</small>
+        </div>
       </div>
       <nav class="nav-list" :aria-label="t('dashboardNavigation')">
         <button v-for="item in (Object.keys(labels) as Section[])" :key="item" class="nav-item" :class="{ active: section === item }" type="button" @click="section = item">
@@ -81,20 +84,57 @@ function stopRouterAndLeave(): void {
         </button>
       </nav>
       <div class="sidebar-footer">
-        <span class="recording"><span class="status-dot" :class="{ on: dashboard.state.value?.logging }" />{{ dashboard.state.value?.logging ? t("loggingOn") : t("loggingOff") }}</span>
+        <span class="recording">
+          <span class="status-dot" :class="{ on: dashboard.state.value?.logging }" />
+          {{ dashboard.state.value?.logging ? t("loggingOn") : t("loggingOff") }}
+        </span>
         <div class="footer-actions">
-          <label class="language-control"><Languages :size="15" aria-hidden="true" /><select v-model="locale" :aria-label="t('language')"><option value="zh-Hant">繁體中文</option><option value="zh-Hans">简体中文</option><option value="en">English</option></select></label>
-          <button class="icon-button" type="button" :title="dark ? t('lightTheme') : t('darkTheme')" :aria-label="dark ? t('lightTheme') : t('darkTheme')" :aria-pressed="dark" @click="toggleTheme"><Sun v-if="dark" :size="17" /><Moon v-else :size="17" /></button>
-          <button class="icon-button danger-button" type="button" :title="t('stopRouter')" :aria-label="t('stopRouter')" :disabled="!running" @click="stopRouterAndLeave"><Power :size="17" /></button>
+          <label class="language-control">
+            <Languages :size="15" aria-hidden="true" />
+            <select v-model="locale" :aria-label="t('language')">
+              <option value="zh-Hant">繁體中文</option>
+              <option value="zh-Hans">简体中文</option>
+              <option value="en">English</option>
+            </select>
+          </label>
+          <button
+            class="icon-button"
+            type="button"
+            :title="dark ? t('lightTheme') : t('darkTheme')"
+            :aria-label="dark ? t('lightTheme') : t('darkTheme')"
+            :aria-pressed="dark"
+            @click="toggleTheme"
+          >
+            <Sun v-if="dark" :size="17" />
+            <Moon v-else :size="17" />
+          </button>
+          <button
+            class="icon-button danger-button"
+            type="button"
+            :title="t('stopRouter')"
+            :aria-label="t('stopRouter')"
+            :disabled="!running"
+            @click="stopRouterAndLeave"
+          >
+            <Power :size="17" />
+          </button>
         </div>
       </div>
     </aside>
     <main class="main-content">
       <header class="topbar">
-        <div><h1>{{ current.title }}</h1><p>{{ current.subtitle }}</p></div>
+        <div>
+          <h1>{{ current.title }}</h1>
+          <p>{{ current.subtitle }}</p>
+        </div>
         <div class="top-actions">
-          <span class="status-badge" :class="running ? 'running' : 'stopped'">{{ running ? t("routerRunning") : t("routerStopped") }}</span>
-          <button class="primary-button" type="button" :disabled="dashboard.busy.value" @click="dashboard.toggleRouter"><Power :size="16" />{{ running ? t("stopRouter") : t("startRouter") }}</button>
+          <span class="status-badge" :class="running ? 'running' : 'stopped'">
+            {{ running ? t("routerRunning") : t("routerStopped") }}
+          </span>
+          <button class="primary-button" type="button" :disabled="dashboard.busy.value" @click="dashboard.toggleRouter">
+            <Power :size="16" />
+            {{ running ? t("stopRouter") : t("startRouter") }}
+          </button>
         </div>
       </header>
       <p v-if="dashboard.error.value" class="global-error" role="alert">{{ dashboard.error.value }}</p>
