@@ -1,45 +1,4 @@
-@font-face {
-  font-family: "Noto Sans TC";
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url("./fonts/NotoSansTC-400.ttf") format("truetype");
-}
-@font-face {
-  font-family: "Noto Sans TC";
-  font-style: normal;
-  font-weight: 600;
-  font-display: swap;
-  src: url("./fonts/NotoSansTC-600.ttf") format("truetype");
-}
-@font-face {
-  font-family: "Noto Sans TC";
-  font-style: normal;
-  font-weight: 700;
-  font-display: swap;
-  src: url("./fonts/NotoSansTC-700.ttf") format("truetype");
-}
-@font-face {
-  font-family: "Noto Sans SC";
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url("./fonts/NotoSansSC-400.ttf") format("truetype");
-}
-@font-face {
-  font-family: "Noto Sans SC";
-  font-style: normal;
-  font-weight: 600;
-  font-display: swap;
-  src: url("./fonts/NotoSansSC-600.ttf") format("truetype");
-}
-@font-face {
-  font-family: "Noto Sans SC";
-  font-style: normal;
-  font-weight: 700;
-  font-display: swap;
-  src: url("./fonts/NotoSansSC-700.ttf") format("truetype");
-}
+@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;600;700&family=Noto+Sans+TC:wght@400;600;700&display=swap");
 
 :root {
   color-scheme: light;

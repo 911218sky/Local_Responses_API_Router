@@ -56,8 +56,8 @@ token so dark surfaces do not acquire bright outlines.
 ### Type And Space
 
 - Font stack: `Noto Sans TC`, `Noto Sans SC`, `Inter`, `Segoe UI`, system sans-serif.
-  The local Traditional and Simplified Chinese font subsets keep interface
-  labels readable when a host does not provide a CJK system font.
+  Traditional and Simplified Chinese weights load from Google Fonts with the
+  system stack as the offline fallback; font binaries are not stored in Git.
 - Display: 24px / 700; section heading: 16px / 700; body: 14px / 1.45.
 - Spacing unit: 4px. Layout gaps use 8px, 12px, 16px, 20px, 24px, or 32px.
 - Border: 2px for controls and 3px for primary framed surfaces.
