@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive, watch } from "vue"
+import { reactive, ref, watch } from "vue"
 import { useLocale } from "~/composables/useLocale"
 
 const props = defineProps<{ dashboard: ReturnType<typeof import("~/composables/useDashboard").useDashboard> }>()
@@ -42,10 +42,13 @@ const draft = reactive<SettingsDraft>({
   sendResponsesLite: true,
   responsesLite: true,
 })
+const draftDirty = ref(false)
+const syncingDraft = ref(false)
 watch(
   () => props.dashboard.config.value,
   (config) => {
-    if (!config) return
+    if (!config || draftDirty.value) return
+    syncingDraft.value = true
     Object.assign(draft, {
       retryCount: config.retryCount,
       capacityRetryCount: config.capacityRetryCount,
@@ -64,8 +67,17 @@ watch(
       sendResponsesLite: config.codexProfile.sendResponsesLite,
       responsesLite: config.codexProfile.responsesLite,
     })
+    syncingDraft.value = false
   },
   { immediate: true },
+)
+watch(
+  draft,
+  () => {
+    if (syncingDraft.value) return
+    draftDirty.value = true
+  },
+  { deep: true },
 )
 async function save(): Promise<void> {
   await props.dashboard.saveConfig({
@@ -89,6 +101,7 @@ async function save(): Promise<void> {
       sendResponsesLite: draft.sendResponsesLite,
     },
   })
+  draftDirty.value = false
 }
 </script>
 

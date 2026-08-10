@@ -436,6 +436,7 @@ class ProxyService extends EventEmitter {
   ): void {
     const responseChunks: Buffer[] = []
     let responseBytes = 0
+    let streamFinished = false
     const maxCapturedBytes = 5 * 1024 * 1024
     clientRes.writeHead(upstream.statusCode || 502, upstream.headers)
     upstream.on("data", (chunk) => {
@@ -443,6 +444,8 @@ class ProxyService extends EventEmitter {
       responseBytes += chunk.length
     })
     upstream.on("end", () => {
+      streamFinished = true
+      streamFinished = true
       const response = tryJson(Buffer.concat(responseChunks).toString("utf8"))
       const statusCode = upstream.statusCode || 502
       const upstreamError = statusCode >= 400 ? getUpstreamError(response) : null
@@ -463,20 +466,25 @@ class ProxyService extends EventEmitter {
           : {}),
       })
     })
-    upstream.on("error", (error) => {
+    const handleStreamDisconnect = (error: unknown): void => {
+      if (streamFinished) return
+      streamFinished = true
       const active = activeId ? this.activeRequests.get(activeId) : undefined
       if (!active || active.cancelled || active.status === "timed_out") return
+      const message = `Stream disconnected before completion: ${errorMessage(error)}`
       this.logStore.finalize(logId, {
         status: "upstream_error",
-        error: errorMessage(error),
+        error: message,
         durationMs: Date.now() - started,
       })
       this.activeRequests.finish(activeId)
       if (!clientRes.writableEnded) {
         if (clientRes.headersSent) clientRes.end()
-        else sendJson(clientRes, 502, { error: errorMessage(error) })
+        else sendJson(clientRes, 502, { error: message })
       }
-    })
+    }
+    upstream.on("error", handleStreamDisconnect)
+    upstream.on("aborted", () => handleStreamDisconnect(new Error("upstream response aborted")))
     upstream.pipe(clientRes)
   }
 
@@ -495,6 +503,7 @@ class ProxyService extends EventEmitter {
     if (active) active.upstreamResponse = upstream
     const responseChunks: Buffer[] = []
     let responseBytes = 0
+    let streamFinished = false
     const maxCapturedBytes = 5 * 1024 * 1024
     const contextObserver: ResponseContextObserver | null = logId
       ? createResponseContextObserver(upstream, this.logStore, logId, requestInput, this.contextStore, contextMetadata)
@@ -505,6 +514,7 @@ class ProxyService extends EventEmitter {
       responseBytes += chunk.length
     })
     upstream.on("end", () => {
+      streamFinished = true
       const responseText = Buffer.concat(responseChunks).toString("utf8")
       const parsedResponse = tryJson(responseText)
       const statusCode = upstream.statusCode || 502
@@ -535,20 +545,25 @@ class ProxyService extends EventEmitter {
           : {}),
       })
     })
-    upstream.on("error", (error) => {
+    const handleStreamDisconnect = (error: unknown): void => {
+      if (streamFinished) return
+      streamFinished = true
       const active = activeId ? this.activeRequests.get(activeId) : undefined
       if (!active || active.cancelled || active.status === "timed_out") return
+      const message = `Stream disconnected before completion: ${errorMessage(error)}`
       this.logStore.finalize(logId, {
         status: "upstream_error",
-        error: errorMessage(error),
+        error: message,
         durationMs: Date.now() - started,
       })
       this.activeRequests.finish(activeId)
       if (!clientRes.writableEnded) {
         if (clientRes.headersSent) clientRes.end()
-        else sendJson(clientRes, 502, { error: errorMessage(error) })
+        else sendJson(clientRes, 502, { error: message })
       }
-    })
+    }
+    upstream.on("error", handleStreamDisconnect)
+    upstream.on("aborted", () => handleStreamDisconnect(new Error("upstream response aborted")))
     upstream.pipe(clientRes)
   }
 
