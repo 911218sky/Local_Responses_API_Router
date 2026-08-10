@@ -8,7 +8,7 @@ import * as path from "node:path"
 import { isJsonArray, isJsonObject, type JsonArray, objectFromUnknown, type RouterConfig } from "../core/types"
 import { isAllowedDashboardMutation } from "../dashboard/auth"
 import { publicConfig, publicProvider, validateProvider } from "../dashboard/providers"
-import { isCapacityError, ProxyService } from "../router/proxy-service"
+import { isCapacityError, ProxyService, shouldRetryUpstreamStatus } from "../router/proxy-service"
 import { importCopilotTranscript } from "../router/transcript-importer"
 import { applyCodexProfileHeaders, resetResponseContexts, transformToCodex } from "../router/transformer"
 import { RequestLogStore } from "../storage/request-log"
@@ -269,6 +269,13 @@ test("Given configured upstream providers, When the router handles compatible re
     assert.strictEqual(isCapacityError("Selected model is at capacity. Please try a different model."), true)
     assert.strictEqual(isCapacityError("selected   model is at capacity please try a different model"), true)
     assert.strictEqual(isCapacityError("Selected model is unavailable. Please try a different model."), false)
+    assert.strictEqual(shouldRetryUpstreamStatus(408), true)
+    assert.strictEqual(shouldRetryUpstreamStatus(425), true)
+    assert.strictEqual(shouldRetryUpstreamStatus(429), true)
+    assert.strictEqual(shouldRetryUpstreamStatus(503), true)
+    assert.strictEqual(shouldRetryUpstreamStatus(400), false)
+    assert.strictEqual(shouldRetryUpstreamStatus(401), false)
+    assert.strictEqual(shouldRetryUpstreamStatus(404), false)
     assert.doesNotThrow(
       () =>
         validateProvider(

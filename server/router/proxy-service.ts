@@ -337,7 +337,7 @@ class ProxyService extends EventEmitter {
           throw new RequestCancelledError()
         }
         const statusCode = upstream.statusCode || 502
-        const failed = routeOnly ? statusCode < 200 || statusCode >= 300 : statusCode >= 500
+        const failed = shouldRetryUpstreamStatus(statusCode)
         if (failed) {
           const responseBody = await readResponseBody(upstream)
           const responseJson = tryJson(responseBody)
@@ -652,4 +652,8 @@ class RequestCancelledError extends Error {
   }
 }
 
-export { isCapacityError, ProxyService, resolveRoute }
+function shouldRetryUpstreamStatus(statusCode: number): boolean {
+  return statusCode === 408 || statusCode === 425 || statusCode === 429 || statusCode >= 500
+}
+
+export { isCapacityError, ProxyService, resolveRoute, shouldRetryUpstreamStatus }
