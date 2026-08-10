@@ -3,6 +3,7 @@ import { mkdtemp } from "node:fs/promises"
 import * as http from "node:http"
 import * as os from "node:os"
 import * as path from "node:path"
+import { normalizeConfig } from "../config/data-store"
 import type { RouterConfig } from "../core/types"
 import { ProxyService } from "../router/proxy-service"
 import {
@@ -15,6 +16,32 @@ import {
 import { RequestLogStore } from "../storage/request-log"
 import { ResponseContextStore } from "../storage/response-context"
 import { RouterDatabase } from "../storage/sqlite-store"
+
+test("Given unbounded service settings, When config is normalized, Then non-negative integers are preserved", () => {
+  const config = normalizeConfig({
+    retryCount: 101,
+    capacityRetryCount: 102,
+    retryDelayMs: 30_001,
+    activeRequestTimeoutMs: 3_600_001,
+  })
+
+  expect(config.retryCount).toBe(101)
+  expect(config.capacityRetryCount).toBe(102)
+  expect(config.retryDelayMs).toBe(30_001)
+  expect(config.activeRequestTimeoutMs).toBe(3_600_001)
+
+  const disabled = normalizeConfig({
+    retryCount: 0,
+    capacityRetryCount: 0,
+    retryDelayMs: 0,
+    activeRequestTimeoutMs: 0,
+  })
+
+  expect(disabled.retryCount).toBe(0)
+  expect(disabled.capacityRetryCount).toBe(0)
+  expect(disabled.retryDelayMs).toBe(0)
+  expect(disabled.activeRequestTimeoutMs).toBe(0)
+})
 
 test("Given a JSON response, When the store is reloaded, Then previous_response_id restores its history", async () => {
   const dataDirectory = await mkdtemp(path.join(os.tmpdir(), "router-json-context-"))

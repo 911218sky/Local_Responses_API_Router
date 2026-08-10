@@ -86,8 +86,11 @@ export class ActiveRequestTracker {
       upstreamResponse: null,
       clientRes: null,
     }
-    request.timeoutHandle = setTimeout(() => this.expire(request.id), this.dependencies.timeoutMs())
-    request.timeoutHandle.unref?.()
+    const timeoutMs = this.dependencies.timeoutMs()
+    if (timeoutMs > 0) {
+      request.timeoutHandle = setTimeout(() => this.expire(request.id), timeoutMs)
+      request.timeoutHandle.unref?.()
+    }
     this.requests.set(request.id, request)
     this.dependencies.notify({ type: "active-created", request: this.public(request) })
     return request

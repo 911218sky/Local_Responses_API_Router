@@ -97,10 +97,10 @@ function normalizeConfig(value: unknown): RouterConfig {
     recordLogs: booleanOr(raw.recordLogs, DEFAULT_CONFIG.recordLogs),
     persistResponseContexts: booleanOr(raw.persistResponseContexts, DEFAULT_CONFIG.persistResponseContexts),
     clearLogsOnShutdown: booleanOr(raw.clearLogsOnShutdown, DEFAULT_CONFIG.clearLogsOnShutdown),
-    retryCount: integer(raw.retryCount, 0, 100, DEFAULT_CONFIG.retryCount),
-    capacityRetryCount: integer(raw.capacityRetryCount, 0, 100, DEFAULT_CONFIG.capacityRetryCount),
-    retryDelayMs: integer(raw.retryDelayMs, 100, 30000, DEFAULT_CONFIG.retryDelayMs),
-    activeRequestTimeoutMs: integer(raw.activeRequestTimeoutMs, 1000, 3600000, DEFAULT_CONFIG.activeRequestTimeoutMs),
+    retryCount: nonNegativeInteger(raw.retryCount, DEFAULT_CONFIG.retryCount),
+    capacityRetryCount: nonNegativeInteger(raw.capacityRetryCount, DEFAULT_CONFIG.capacityRetryCount),
+    retryDelayMs: nonNegativeInteger(raw.retryDelayMs, DEFAULT_CONFIG.retryDelayMs),
+    activeRequestTimeoutMs: nonNegativeInteger(raw.activeRequestTimeoutMs, DEFAULT_CONFIG.activeRequestTimeoutMs),
     codexProfile: normalizeProfile(rawProfile),
     dashboardAuth: normalizeDashboardAuth(rawAuth),
     providers: rawProviders.map(normalizeProvider),
@@ -165,9 +165,9 @@ function port(value: unknown, fallback: number): number {
   return Number.isInteger(result) && result > 0 && result < 65536 ? result : fallback
 }
 
-function integer(value: unknown, min: number, max: number, fallback: number): number {
+function nonNegativeInteger(value: unknown, fallback: number): number {
   const result = Number(value)
-  return Number.isInteger(result) && result >= min && result <= max ? result : fallback
+  return Number.isInteger(result) && result >= 0 ? result : fallback
 }
 
 export { appData, database, loadConfig, normalizeConfig, normalizeProvider, saveConfig }

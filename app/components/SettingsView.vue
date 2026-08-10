@@ -105,19 +105,19 @@ async function save(): Promise<void> {
         <h2>{{ t("serviceBehavior") }}</h2>
         <label>
           {{ t("retryCount") }}
-          <input v-model.number="draft.retryCount" type="number" min="0" max="100">
+          <input v-model.number="draft.retryCount" type="number" min="0">
         </label>
         <label>
           {{ t("capacityRetryCount") }}
-          <input v-model.number="draft.capacityRetryCount" type="number" min="0" max="100">
+          <input v-model.number="draft.capacityRetryCount" type="number" min="0">
         </label>
         <label>
           {{ t("retryDelay") }}
-          <input v-model.number="draft.retryDelayMs" type="number" min="100" max="30000">
+          <input v-model.number="draft.retryDelayMs" type="number" min="0">
         </label>
         <label>
           {{ t("requestTimeout") }}
-          <input v-model.number="draft.activeRequestTimeoutMs" type="number" min="1000" max="3600000">
+          <input v-model.number="draft.activeRequestTimeoutMs" type="number" min="0">
         </label>
         <label class="toggle-row">
           <span>
