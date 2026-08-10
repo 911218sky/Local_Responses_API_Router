@@ -38,6 +38,7 @@ let routeOnlyAttempts = 0
 let capacityAttempts = 0
 let persistentCapacityAttempts = 0
 let responseRequestCount = 0
+let disconnectBeforeDataAttempts = 0
 let slowStreamStarted = 0
 let resolveSlowHeaders: (() => void) | undefined
 const slowHeadersReady = new Promise<void>((resolve) => {
@@ -126,6 +127,17 @@ const upstream = http.createServer((req, res) => {
       return
     }
     if (req.url === "/v1/hang") {
+      return
+    }
+    if (req.url === "/v1/disconnect-before-data") {
+      disconnectBeforeDataAttempts += 1
+      res.writeHead(200, { "content-type": "text/event-stream" })
+      res.flushHeaders()
+      if (disconnectBeforeDataAttempts === 1) {
+        res.destroy()
+        return
+      }
+      res.end('data: {"type":"response.completed","response":{"id":"resp_retried","output":[]}}\n\n')
       return
     }
     if (req.url === "/v1/no-log-context") {
@@ -925,6 +937,17 @@ test("Given configured upstream providers, When the router handles compatible re
       "timed out requests should be removed from active state",
     )
     config.activeRequestTimeoutMs = previousTimeout
+
+    config.retryCount = 1
+    config.retryDelayMs = 0
+    const retriedStream = await startRaw(
+      "/local/v1/disconnect-before-data",
+      Buffer.from('{"model":"retry-model","input":[],"stream":true}'),
+      "retry-before-data",
+    ).response
+    assert.strictEqual(retriedStream.statusCode, 200)
+    assert.strictEqual(disconnectBeforeDataAttempts, 2, "a disconnect before the first body chunk should retry")
+    assert(retriedStream.body.includes("resp_retried"), "the client should receive the successful retry stream")
 
     const routeOnlyLogCount = store.logs.length
     const routeOnlyContextCount = contexts.contexts.length

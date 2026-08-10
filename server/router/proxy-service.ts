@@ -382,10 +382,13 @@ class ProxyService extends EventEmitter {
               : "streaming",
           responseStatus: upstream.statusCode || 502,
         })
+        const isEventStream = headerValue(upstream.headers["content-type"])?.includes("text/event-stream") === true
         if (routeOnly) {
+          if (isEventStream) await waitForFirstChunk(upstream)
           this.pipeRouteOnlyResponse(upstream, clientRes, logId, started, targetUrl.origin, finalPath, activeId)
           return
         }
+        if (isEventStream) await waitForFirstChunk(upstream)
         this.pipeResponse(
           upstream,
           clientRes,
@@ -444,7 +447,6 @@ class ProxyService extends EventEmitter {
       responseBytes += chunk.length
     })
     upstream.on("end", () => {
-      streamFinished = true
       streamFinished = true
       const response = tryJson(Buffer.concat(responseChunks).toString("utf8"))
       const statusCode = upstream.statusCode || 502
@@ -637,6 +639,34 @@ function makeRequest(
     if (activeRequest) activeRequest.upstreamRequest = request
     request.on("error", reject)
     request.end(body)
+  })
+}
+
+function waitForFirstChunk(stream: http.IncomingMessage): Promise<void> {
+  return new Promise((resolve, reject) => {
+    let settled = false
+    const finish = (callback: () => void): void => {
+      if (settled) return
+      settled = true
+      stream.off("data", onData)
+      stream.off("error", onError)
+      stream.off("aborted", onAborted)
+      stream.off("close", onClose)
+      callback()
+    }
+    const onData = (chunk: Buffer | string): void => {
+      stream.pause()
+      const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk))
+      stream.unshift(buffer)
+      finish(resolve)
+    }
+    const onError = (error: Error): void => finish(() => reject(error))
+    const onAborted = (): void => finish(() => reject(new Error("upstream response aborted before the first chunk")))
+    const onClose = (): void => finish(() => reject(new Error("upstream response closed before the first chunk")))
+    stream.once("data", onData)
+    stream.once("error", onError)
+    stream.once("aborted", onAborted)
+    stream.once("close", onClose)
   })
 }
 
