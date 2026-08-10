@@ -122,3 +122,25 @@ export interface DashboardState {
   sessions: Session[]
   missingContinuations: Array<{ responseId: string; createdAt: string; provider?: Provider; logId: string }>
 }
+
+export interface ProviderTestPreset {
+  id: string
+  name: string
+  baseUrl: string
+  protocol: "openai" | "anthropic" | "gemini" | "ollama"
+  apiKeyRequired: boolean
+  description: string
+}
+
+export interface ProviderTestError {
+  code:
+    | "invalid_input"
+    | "invalid_key"
+    | "invalid_base_url"
+    | "model_not_found"
+    | "timeout"
+    | "unavailable"
+    | "upstream_error"
+  message: string
+  status?: number
+}

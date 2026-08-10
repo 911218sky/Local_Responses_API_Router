@@ -1,15 +1,16 @@
 <script setup lang="ts">
-import { Activity, Home, Languages, Moon, Power, Server, Settings, Sun } from "lucide-vue-next"
+import { Activity, FlaskConical, Home, Languages, Moon, Power, Server, Settings, Sun } from "lucide-vue-next"
 import { callOnce } from "nuxt/app"
 import { computed, ref } from "vue"
 import DashboardOverview from "~/components/DashboardOverview.vue"
 import ProvidersView from "~/components/ProvidersView.vue"
+import ProviderTestView from "~/components/ProviderTestView.vue"
 import SettingsView from "~/components/SettingsView.vue"
 import TrafficView from "~/components/TrafficView.vue"
 import { useDashboard } from "~/composables/useDashboard"
 import { useLocale } from "~/composables/useLocale"
 
-type Section = "overview" | "providers" | "traffic" | "settings"
+type Section = "overview" | "providers" | "test" | "traffic" | "settings"
 
 const dashboard = useDashboard()
 await callOnce("dashboard-initial-state", dashboard.refresh)
@@ -26,6 +27,7 @@ const { locale, t } = useLocale()
 const sectionMessageKeys: Record<Section, { title: string; subtitle: string }> = {
   overview: { title: "overview", subtitle: "overviewSubtitle" },
   providers: { title: "providers", subtitle: "providersSubtitle" },
+  test: { title: "testCenter", subtitle: "testCenterSubtitle" },
   traffic: { title: "traffic", subtitle: "trafficSubtitle" },
   settings: { title: "settings", subtitle: "settingsSubtitle" },
 }
@@ -77,6 +79,7 @@ function stopRouterAndLeave(): void {
         <button v-for="item in (Object.keys(labels) as Section[])" :key="item" class="nav-item" :class="{ active: section === item }" type="button" @click="section = item">
           <Home v-if="item === 'overview'" :size="17" aria-hidden="true" />
           <Server v-else-if="item === 'providers'" :size="17" aria-hidden="true" />
+          <FlaskConical v-else-if="item === 'test'" :size="17" aria-hidden="true" />
           <Activity v-else-if="item === 'traffic'" :size="17" aria-hidden="true" />
           <Settings v-else :size="17" aria-hidden="true" />
           <span>{{ labels[item].title }}</span>
@@ -138,10 +141,11 @@ function stopRouterAndLeave(): void {
         </div>
       </header>
       <p v-if="dashboard.error.value" class="global-error" role="alert">{{ dashboard.error.value }}</p>
-      <DashboardOverview v-if="section === 'overview'" :dashboard="dashboard" @open-providers="section = 'providers'" @open-traffic="section = 'traffic'" />
-      <ProvidersView v-else-if="section === 'providers'" :dashboard="dashboard" />
-      <TrafficView v-else-if="section === 'traffic'" :dashboard="dashboard" />
-      <SettingsView v-else :dashboard="dashboard" />
+      <DashboardOverview v-show="section === 'overview'" :dashboard="dashboard" @open-providers="section = 'providers'" @open-traffic="section = 'traffic'" />
+      <ProvidersView v-show="section === 'providers'" :dashboard="dashboard" />
+      <ProviderTestView v-show="section === 'test'" :dashboard="dashboard" />
+      <TrafficView v-show="section === 'traffic'" :dashboard="dashboard" />
+      <SettingsView v-show="section === 'settings'" :dashboard="dashboard" />
     </main>
   </div>
 </template>

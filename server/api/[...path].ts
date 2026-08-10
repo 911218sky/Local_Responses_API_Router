@@ -10,6 +10,7 @@ import {
 } from "h3"
 import { objectFromUnknown } from "../core/types"
 import { isAuthorizedBasicHeader } from "../dashboard/auth"
+import { listProviderModels, PROVIDER_TEST_PRESETS, sendProviderTestMessage } from "../dashboard/provider-test"
 import { listSessions, matchesSessionKey } from "../dashboard/sessions"
 import { getRouterRuntime } from "../runtime"
 
@@ -25,6 +26,11 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 403, statusMessage: "Dashboard request origin is not allowed." })
 
   if (event.method === "GET" && requestPath === "state") return runtime.publicState()
+  if (event.method === "GET" && requestPath === "provider-tests/presets") return { presets: PROVIDER_TEST_PRESETS }
+  if (event.method === "POST" && requestPath === "provider-tests/models")
+    return listProviderModels(await readBody(event))
+  if (event.method === "POST" && requestPath === "provider-tests/message")
+    return sendProviderTestMessage(await readBody(event))
   if (event.method === "GET" && requestPath === "logs")
     return { enabled: runtime.state.recordLogs, logs: runtime.logs.list() }
   if (event.method === "DELETE" && requestPath === "logs") {

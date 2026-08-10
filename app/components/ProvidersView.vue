@@ -3,6 +3,7 @@ import { Check, Copy, Pencil, Plus, Trash2, X } from "lucide-vue-next"
 import { ref } from "vue"
 import { useLocale } from "~/composables/useLocale"
 import type { Provider } from "~/types"
+import { providerRouterUrl } from "~/utils/router-url"
 
 const props = defineProps<{ dashboard: ReturnType<typeof import("~/composables/useDashboard").useDashboard> }>()
 const dialogOpen = ref(false)
@@ -48,12 +49,7 @@ async function remove(provider: Provider): Promise<void> {
 function routerUrl(provider: Provider): string {
   const current = window.location
   const routerPort = props.dashboard.router.value?.port ?? props.dashboard.config.value?.routerPort
-  const localHost = current.hostname === "localhost" || current.hostname === "127.0.0.1" || current.hostname === "::1"
-  const port = localHost ? routerPort : current.port ? Number(current.port) : undefined
-  const defaultPort = (current.protocol === "http:" && port === 80) || (current.protocol === "https:" && port === 443)
-  const host = current.hostname.includes(":") ? `[${current.hostname}]` : current.hostname
-  const authority = port && !defaultPort ? `${host}:${port}` : host
-  return `${current.protocol}//${authority}/${encodeURIComponent(provider.slug)}/v1`
+  return providerRouterUrl(current, routerPort, provider.slug)
 }
 
 async function copyRouterUrl(provider: Provider): Promise<void> {

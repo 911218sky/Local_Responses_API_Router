@@ -10,6 +10,23 @@ cd Local_Responses_API_Router
 docker compose up --build -d
 ```
 
+若 Router 透過 Nginx 與 Cloudflare 對外提供服務，請在對應的 `server` 區塊加入
+`deploy/nginx/llm-router.conf` 中的設定，尤其是 `client_max_body_size 50m;`。Responses
+續接請求會攜帶累積的輸入歷史；若仍使用 Nginx 預設的 1 MiB 限制，長對話會在 Router
+收到請求前回傳 `413 Payload Too Large`。
+
+套用範例：
+
+```bash
+sudo install -m 0644 deploy/nginx/llm-router.conf /etc/nginx/sites-available/llm-router
+sudo ln -sfn /etc/nginx/sites-available/llm-router /etc/nginx/sites-enabled/llm-router
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+若既有站台已負責 TLS，請只把 `client_max_body_size 50m;`、`proxy_request_buffering off;`
+及相關 timeout/header 設定合併到現有的 Router `location`，不要建立第二個同名 `server`。
+
 確認容器與健康狀態：
 
 ```bash

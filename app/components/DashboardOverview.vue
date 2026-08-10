@@ -3,17 +3,23 @@ import { Plus, X } from "lucide-vue-next"
 import { computed } from "vue"
 import { useLocale } from "~/composables/useLocale"
 import type { Provider } from "~/types"
+import { providerRouterRouteFormat, providerRouterUrl } from "~/utils/router-url"
 
 const props = defineProps<{ dashboard: ReturnType<typeof import("~/composables/useDashboard").useDashboard> }>()
 const emit = defineEmits<{ openProviders: []; openTraffic: [] }>()
 const { t } = useLocale()
 const active = computed(() => props.dashboard.router.value?.activeRequests ?? [])
 const recent = computed(() => props.dashboard.logs.value.slice(0, 12))
-const route = computed(() => props.dashboard.router.value?.routeFormat ?? t("notStarted"))
+const requestUrl = useRequestURL()
+const route = computed(() => {
+  const routerPort = props.dashboard.router.value?.port ?? props.dashboard.config.value?.routerPort
+  return props.dashboard.router.value ? providerRouterRouteFormat(requestUrl, routerPort) : t("notStarted")
+})
 const providers = computed(() => props.dashboard.providers.value.slice(0, 5))
 
 function providerRoute(provider: Provider): string {
-  return `${route.value.replace("{provider}", provider.slug)}`
+  const routerPort = props.dashboard.router.value?.port ?? props.dashboard.config.value?.routerPort
+  return providerRouterUrl(requestUrl, routerPort, provider.slug)
 }
 </script>
 
