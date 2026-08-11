@@ -12,6 +12,7 @@ import {
   isJsonObject,
   type JsonArray,
   type JsonObject,
+  type ModelMapping,
   type Provider,
   type ResponseContextMetadata,
   type RouterConfig,
@@ -994,7 +995,7 @@ function jsonObjectFrom(value: JsonObject): JsonObject {
 
 function rewriteModelBuffer(
   rawBody: Buffer,
-  mappings: readonly { readonly from: string; readonly to: string }[],
+  mappings: readonly ModelMapping[],
 ): { readonly bodyBuffer: Buffer; readonly changed: boolean; readonly from?: string; readonly to?: string } {
   const parsed = tryJson(rawBody)
   const rewritten = rewriteModelObject(parsed, mappings)
@@ -1005,11 +1006,11 @@ function rewriteModelBuffer(
 
 function rewriteModelObject(
   value: unknown,
-  mappings: readonly { readonly from: string; readonly to: string }[],
+  mappings: readonly ModelMapping[],
 ): { readonly body: unknown; readonly changed: boolean; readonly from?: string; readonly to?: string } {
   if (!isJsonObject(value) || typeof value.model !== "string") return { body: value, changed: false }
   const model = value.model
-  const mapping = mappings.find((item) => item.from === model || matchesModelPattern(item.from, model))
+  const mapping = mappings.find((item) => item.enabled !== false && (item.from === model || matchesModelPattern(item.from, model)))
   if (!mapping?.to || mapping.to === model) return { body: value, changed: false }
   return { body: { ...value, model: mapping.to }, changed: true, from: model, to: mapping.to }
 }

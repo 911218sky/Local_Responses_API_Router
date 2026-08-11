@@ -19,6 +19,7 @@ export interface Provider {
 export interface ModelMapping {
   readonly from: string
   readonly to: string
+  readonly enabled?: boolean
 }
 
 export interface DashboardAuth {

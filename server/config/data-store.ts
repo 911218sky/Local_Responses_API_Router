@@ -153,7 +153,7 @@ function normalizeModelMappings(value: unknown): ModelMapping[] {
   if (!Array.isArray(value)) return []
   return value
     .map((item) => objectFromUnknown(item))
-    .map((item) => ({ from: stringOr(item.from).trim(), to: stringOr(item.to).trim() }))
+    .map((item) => ({ from: stringOr(item.from).trim(), to: stringOr(item.to).trim(), enabled: item.enabled !== false }))
     .filter((item) => item.from.length > 0 && item.to.length > 0)
 }
 

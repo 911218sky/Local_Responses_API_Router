@@ -11,6 +11,7 @@ export interface Provider {
 export interface ModelMapping {
   from: string
   to: string
+  enabled?: boolean
 }
 
 export interface RouterStatus {

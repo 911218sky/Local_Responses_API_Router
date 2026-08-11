@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { Check, ChevronDown, ChevronUp, Copy, CopyPlus, GripVertical, Pencil, Plus, Trash2, X } from "lucide-vue-next"
-import { ref } from "vue"
+import { Check, ChevronDown, ChevronUp, Copy, CopyPlus, GripVertical, Pencil, Plus, Power, Trash2, X } from "lucide-vue-next"
+import { computed, ref } from "vue"
 import { useLocale } from "~/composables/useLocale"
 import type { Provider } from "~/types"
 import { providerRouterUrl } from "~/utils/router-url"
@@ -14,7 +14,7 @@ const form = ref({
   baseUrl: "",
   enabled: true,
   routeOnly: false,
-  modelMappings: [] as { from: string; to: string }[],
+  modelMappings: [] as { from: string; to: string; enabled: boolean }[],
 })
 const formError = ref("")
 const copyMessage = ref("")
@@ -32,7 +32,7 @@ function open(provider?: Provider): void {
         baseUrl: provider.baseUrl,
         enabled: provider.enabled,
         routeOnly: provider.routeOnly,
-        modelMappings: (provider.modelMappings ?? []).map((mapping) => ({ ...mapping })),
+        modelMappings: (provider.modelMappings ?? []).map((mapping) => ({ ...mapping, enabled: mapping.enabled !== false })),
       }
     : { name: "", slug: "", baseUrl: "", enabled: true, routeOnly: false, modelMappings: [] }
   formError.value = ""
@@ -40,7 +40,7 @@ function open(provider?: Provider): void {
 }
 
 function addMapping(): void {
-  form.value.modelMappings.push({ from: "", to: "" })
+  form.value.modelMappings.push({ from: "", to: "", enabled: true })
 }
 
 function removeMapping(index: number): void {
@@ -66,6 +66,13 @@ function dropMapping(index: number): void {
   if (source === null || source === index) return
   const [mapping] = form.value.modelMappings.splice(source, 1)
   form.value.modelMappings.splice(index, 0, mapping)
+}
+
+const allMappingsEnabled = computed(() => form.value.modelMappings.length > 0 && form.value.modelMappings.every((mapping) => mapping.enabled))
+
+function toggleAllMappings(): void {
+  const enabled = !allMappingsEnabled.value
+  for (const mapping of form.value.modelMappings) mapping.enabled = enabled
 }
 
 async function clone(provider: Provider, mode: "route" | "mapping"): Promise<void> {
@@ -241,7 +248,12 @@ async function copyRouterUrl(provider: Provider): Promise<void> {
           <i />
         </label>
         <fieldset class="mapping-fieldset">
-          <legend>{{ t("modelMappings") }}</legend>
+          <legend>
+            {{ t("modelMappings") }}
+            <button class="mapping-toggle-all" type="button" :disabled="form.modelMappings.length === 0" @click="toggleAllMappings">
+              <Power :size="13" /> {{ allMappingsEnabled ? t("disableAllMappings") : t("enableAllMappings") }}
+            </button>
+          </legend>
           <small>{{ t("modelMappingsHint") }}</small>
           <div
             v-for="(mapping, index) in form.modelMappings"
@@ -264,6 +276,9 @@ async function copyRouterUrl(provider: Provider): Promise<void> {
             <input v-model.trim="mapping.from" required placeholder="source-model, prefix*, or ?" autocomplete="off">
             <span>→</span>
             <input v-model.trim="mapping.to" required placeholder="target-model" autocomplete="off">
+            <button class="icon-button mapping-toggle" :class="{ 'is-disabled': !mapping.enabled }" type="button" :title="mapping.enabled ? t('disableMapping') : t('enableMapping')" @click="mapping.enabled = !mapping.enabled">
+              <Power :size="14" />
+            </button>
             <button class="icon-button" type="button" :title="t('moveUp')" :disabled="index === 0" @click="moveMapping(index, -1)">
               <ChevronUp :size="14" />
             </button>

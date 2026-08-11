@@ -36,4 +36,14 @@ test("provider model mappings use the first exact or pattern match in configured
     ).to,
     "fallback-model",
   )
+  assert.strictEqual(
+    rewriteModelObject(
+      { model: "gpt-5.6-terra" },
+      [
+        { from: "gpt-5.6-terra", to: "disabled-model", enabled: false },
+        { from: "*", to: "fallback-model" },
+      ],
+    ).to,
+    "fallback-model",
+  )
 })
