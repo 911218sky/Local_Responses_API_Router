@@ -321,8 +321,6 @@ class ProxyService extends EventEmitter {
     started: number,
     config: RouterConfig,
   ): Promise<void> {
-    if (route.provider.routeOnly)
-      throw new AnthropicCompatibilityError("Anthropic compatibility requires request transformation.")
     if (!config.forwardEnabled) throw new HttpError(503, "Forwarding is disabled in the dashboard.")
     const incoming = tryJson(rawBody)
     const anthropic = anthropicToResponses(incoming)
