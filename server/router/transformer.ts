@@ -262,6 +262,7 @@ function transformToCodex(
     "content-length": String(outputBuffer.length),
     accept: "text/event-stream",
     ...(incomingHeaders.authorization ? { authorization: incomingHeaders.authorization } : {}),
+    ...(incomingHeaders["x-api-key"] ? { "x-api-key": incomingHeaders["x-api-key"] } : {}),
     "content-type": "application/json",
     "session-id": sessionId,
     "thread-id": threadId,
