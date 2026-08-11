@@ -817,6 +817,8 @@ code {
   background: var(--color-backdrop);
 }
 .dialog {
+  position: relative;
+  inset: auto;
   width: min(760px, 100%);
   max-height: calc(100dvh - 32px);
   margin: 0;
