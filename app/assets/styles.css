@@ -875,12 +875,21 @@ code {
 }
 .mapping-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1fr) auto auto auto;
   align-items: center;
   gap: 6px;
 }
 .mapping-row input {
   min-width: 0;
+}
+.mapping-row.is-dragging {
+  opacity: 0.5;
+}
+.drag-handle {
+  cursor: grab;
+}
+.drag-handle:active {
+  cursor: grabbing;
 }
 .secondary-button {
   display: inline-flex;

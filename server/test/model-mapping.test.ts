@@ -3,7 +3,7 @@ import assert from "node:assert"
 import { normalizeProvider } from "../config/data-store"
 import { rewriteModelObject } from "../router/proxy-service"
 
-test("provider model mappings rewrite exact and wildcard models", () => {
+test("provider model mappings use the first exact or pattern match in configured order", () => {
   const provider = normalizeProvider({
     id: "image-route",
     slug: "image-route",
@@ -11,6 +11,8 @@ test("provider model mappings rewrite exact and wildcard models", () => {
     baseUrl: "https://example.test/v1",
     modelMappings: [
       { from: "gpt-5.6-terra", to: "gpt-image-2" },
+      { from: "claude-haiku-4-5*", to: "gpt-5.6-terra" },
+      { from: "claude-sonnet-?-20251001", to: "gpt-5.6-terra" },
       { from: "*", to: "nano-banana-2" },
     ],
   })
@@ -21,5 +23,17 @@ test("provider model mappings rewrite exact and wildcard models", () => {
     from: "gpt-5.6-terra",
     to: "gpt-image-2",
   })
+  assert.strictEqual(rewriteModelObject({ model: "claude-haiku-4-5-20251001" }, mappings).to, "gpt-5.6-terra")
+  assert.strictEqual(rewriteModelObject({ model: "claude-sonnet-5-20251001" }, mappings).to, "gpt-5.6-terra")
   assert.strictEqual(rewriteModelObject({ model: "any-image-model" }, mappings).to, "nano-banana-2")
+  assert.strictEqual(
+    rewriteModelObject(
+      { model: "gpt-5.6-terra" },
+      [
+        { from: "*", to: "fallback-model" },
+        { from: "gpt-5.6-terra", to: "specific-model" },
+      ],
+    ).to,
+    "fallback-model",
+  )
 })

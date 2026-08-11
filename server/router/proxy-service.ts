@@ -1008,9 +1008,23 @@ function rewriteModelObject(
   mappings: readonly { readonly from: string; readonly to: string }[],
 ): { readonly body: unknown; readonly changed: boolean; readonly from?: string; readonly to?: string } {
   if (!isJsonObject(value) || typeof value.model !== "string") return { body: value, changed: false }
-  const mapping = mappings.find((item) => item.from === value.model) ?? mappings.find((item) => item.from === "*")
-  if (!mapping?.to || mapping.to === value.model) return { body: value, changed: false }
-  return { body: { ...value, model: mapping.to }, changed: true, from: value.model, to: mapping.to }
+  const model = value.model
+  const mapping = mappings.find((item) => item.from === model || matchesModelPattern(item.from, model))
+  if (!mapping?.to || mapping.to === model) return { body: value, changed: false }
+  return { body: { ...value, model: mapping.to }, changed: true, from: model, to: mapping.to }
+}
+
+function matchesModelPattern(pattern: string, model: string): boolean {
+  if (!pattern.includes("*") && !pattern.includes("?")) return false
+  const expression = pattern
+    .split(/([*?])/)
+    .map((segment) => (segment === "*" ? ".*" : segment === "?" ? "." : escapeRegex(segment)))
+    .join("")
+  return new RegExp(`^${expression}$`).test(model)
+}
+
+function escapeRegex(value: string): string {
+  return value.replace(/[|\\{}()[\]^$+*?.]/g, "\\$&")
 }
 class HttpError extends Error {
   constructor(

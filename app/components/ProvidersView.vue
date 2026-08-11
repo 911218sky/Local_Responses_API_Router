@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Check, Copy, CopyPlus, Pencil, Plus, Trash2, X } from "lucide-vue-next"
+import { Check, ChevronDown, ChevronUp, Copy, CopyPlus, GripVertical, Pencil, Plus, Trash2, X } from "lucide-vue-next"
 import { ref } from "vue"
 import { useLocale } from "~/composables/useLocale"
 import type { Provider } from "~/types"
@@ -20,6 +20,7 @@ const formError = ref("")
 const copyMessage = ref("")
 const copiedProviderId = ref<string | null>(null)
 let copyResetTimer: ReturnType<typeof window.setTimeout> | undefined
+const draggedMappingIndex = ref<number | null>(null)
 const { t } = useLocale()
 
 function open(provider?: Provider): void {
@@ -44,6 +45,27 @@ function addMapping(): void {
 
 function removeMapping(index: number): void {
   form.value.modelMappings.splice(index, 1)
+}
+
+function moveMapping(index: number, direction: -1 | 1): void {
+  const destination = index + direction
+  if (destination < 0 || destination >= form.value.modelMappings.length) return
+  const [mapping] = form.value.modelMappings.splice(index, 1)
+  form.value.modelMappings.splice(destination, 0, mapping)
+}
+
+function startMappingDrag(event: DragEvent, index: number): void {
+  draggedMappingIndex.value = index
+  event.dataTransfer?.setData("text/plain", String(index))
+  if (event.dataTransfer) event.dataTransfer.effectAllowed = "move"
+}
+
+function dropMapping(index: number): void {
+  const source = draggedMappingIndex.value
+  draggedMappingIndex.value = null
+  if (source === null || source === index) return
+  const [mapping] = form.value.modelMappings.splice(source, 1)
+  form.value.modelMappings.splice(index, 0, mapping)
 }
 
 async function clone(provider: Provider, mode: "route" | "mapping"): Promise<void> {
@@ -221,10 +243,33 @@ async function copyRouterUrl(provider: Provider): Promise<void> {
         <fieldset class="mapping-fieldset">
           <legend>{{ t("modelMappings") }}</legend>
           <small>{{ t("modelMappingsHint") }}</small>
-          <div v-for="(mapping, index) in form.modelMappings" :key="index" class="mapping-row">
-            <input v-model.trim="mapping.from" required placeholder="source-model or *" autocomplete="off">
+          <div
+            v-for="(mapping, index) in form.modelMappings"
+            :key="index"
+            class="mapping-row"
+            :class="{ 'is-dragging': draggedMappingIndex === index }"
+            @dragover.prevent
+            @drop="dropMapping(index)"
+          >
+            <button
+              class="icon-button drag-handle"
+              type="button"
+              draggable="true"
+              :title="t('dragToReorder')"
+              @dragstart="startMappingDrag($event, index)"
+              @dragend="draggedMappingIndex = null"
+            >
+              <GripVertical :size="14" />
+            </button>
+            <input v-model.trim="mapping.from" required placeholder="source-model, prefix*, or ?" autocomplete="off">
             <span>→</span>
             <input v-model.trim="mapping.to" required placeholder="target-model" autocomplete="off">
+            <button class="icon-button" type="button" :title="t('moveUp')" :disabled="index === 0" @click="moveMapping(index, -1)">
+              <ChevronUp :size="14" />
+            </button>
+            <button class="icon-button" type="button" :title="t('moveDown')" :disabled="index === form.modelMappings.length - 1" @click="moveMapping(index, 1)">
+              <ChevronDown :size="14" />
+            </button>
             <button class="icon-button danger-button" type="button" :title="t('delete')" @click="removeMapping(index)">
               <Trash2 :size="14" />
             </button>
