@@ -339,42 +339,57 @@ class ProxyService extends EventEmitter {
     const rewritten = rewriteModelObject(tryJson(rawBody), route.provider.modelMappings ?? [])
     const incoming = isJsonObject(rewritten.body) ? rewritten.body : {}
     const anthropic = anthropicToResponses(incoming)
-    const transformed = transformToCodex(
-      req.headers,
-      Buffer.from(JSON.stringify(anthropic.request)),
-      "/responses",
-      config.codexProfile,
-      this.contextStore,
-    )
+    // Anthropic-compatible clients need a plain OpenAI Responses request here. Applying the
+    // Codex transform adds Codex-only fields which Claude-compatible upstreams may reject.
+    const bodyBuffer = Buffer.from(JSON.stringify(anthropic.request))
+    const sessionId = resolveSessionId(req.headers, route.provider)
+    const outbound: OutboundRequest = {
+      headers: {
+        ...responsesHeaders(req.headers),
+        "content-type": "application/json",
+        "content-length": String(bodyBuffer.length),
+      },
+      body: anthropic.request,
+      bodyBuffer,
+      method: req.method || "POST",
+      path: "/responses",
+      sessionId,
+    }
+    const transform: TransformTrace = {
+      mode: "passthrough",
+      operations: [
+        {
+          type: "transformed",
+          scope: "routing",
+          from: req.url || "/",
+          to: "/responses",
+          label: "Translated Anthropic Messages request to the standard Responses endpoint",
+        },
+        {
+          type: "transformed",
+          scope: "body",
+          from: "Anthropic Messages body",
+          to: "standard Responses body",
+          label: "Converted Anthropic content and tools without Codex request enrichment",
+        },
+      ],
+    }
     const logId = this.logStore.create({
       provider: publicProvider(route.provider),
       method: req.method || "POST",
       path: req.url || "/",
       localUrl: `http://127.0.0.1:${config.routerPort}${req.url || "/"}`,
-      sessionId: transformed.sessionId,
-      sourceInteractionId: transformed.sourceInteractionId,
+      sessionId,
       inbound: { headers: redactHeaders(req.headers), body: incoming, bytes: rawBody.length },
-      transform: transformed.trace,
-      outbound: logOutbound({
-        headers: transformed.headers,
-        body: transformed.request,
-        bodyBuffer: transformed.body,
-        method: transformed.method,
-        path: transformed.path,
-      }),
+      transform,
+      outbound: logOutbound(outbound),
     })
     this.activeRequests.update(activeId, {
-      sessionId: transformed.sessionId,
-      sourceInteractionId: transformed.sourceInteractionId,
+      sessionId,
     })
     await this.forwardAnthropic(
       route.provider,
-      {
-        headers: transformed.headers,
-        bodyBuffer: transformed.body,
-        method: transformed.method,
-        path: transformed.path,
-      },
+      outbound,
       rewritten.to || anthropic.model,
       anthropic.stream,
       res,
@@ -934,6 +949,17 @@ function isAnthropicMessagesPath(path: string): boolean {
   const queryStart = path.indexOf("?")
   const pathname = queryStart >= 0 ? path.slice(0, queryStart) : path
   return pathname === "/messages"
+}
+
+function responsesHeaders(headers: Headers): Headers {
+  const result: Headers = {}
+  // Do not forward Anthropic protocol and transport headers to /responses. In particular,
+  // anthropic-beta can cause compatibility gateways to select an incompatible handler.
+  for (const name of ["authorization", "x-api-key", "accept", "user-agent"]) {
+    const value = headers[name]
+    if (value !== undefined) result[name] = value
+  }
+  return result
 }
 
 function writeAnthropicEvent(res: http.ServerResponse, event: string, body: JsonObject): void {

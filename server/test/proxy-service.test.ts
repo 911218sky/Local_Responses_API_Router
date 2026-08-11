@@ -82,6 +82,17 @@ const upstream = http.createServer((req, res) => {
       res.end(JSON.stringify({ type: "message", content: [] }))
       return
     }
+    if (req.url === "/v1/responses" && parsedBody?.model === "claude-target") {
+      res.writeHead(200, { "content-type": "application/json" })
+      res.end(
+        JSON.stringify({
+          id: "resp_anthropic",
+          model: "claude-target",
+          output: [{ type: "message", role: "assistant", content: [{ type: "output_text", text: "hello" }] }],
+        }),
+      )
+      return
+    }
     if (req.url === "/v1/capacity") {
       capacityAttempts += 1
       if (capacityAttempts < 3) {
@@ -394,6 +405,7 @@ test("Given configured upstream providers, When the router handles compatible re
           baseUrl: `http://127.0.0.1:${upstreamPort}/v1`,
           enabled: true,
           routeOnly: false,
+          modelMappings: [{ from: "claude-source", to: "claude-target" }],
         },
         {
           id: "direct",
@@ -973,6 +985,32 @@ test("Given configured upstream providers, When the router handles compatible re
     assert.strictEqual(anthropicRequest.url, "/v1/messages")
     assert.strictEqual(anthropicRequest.body?.model, "claude-target", "route-only Anthropic requests should still apply model mappings")
     assert.strictEqual(anthropicRequest.headers["x-api-key"], "test-key", "route-only Anthropic requests should preserve the API key")
+
+    const convertedAnthropicStatus = await postRaw(
+      "/local/v1/messages",
+      anthropicBody,
+      "Bearer test",
+      "anthropic-converted",
+      "Incoming test UA",
+      "test-key",
+    )
+    assert.strictEqual(convertedAnthropicStatus, 200, "Anthropic Messages requests should be converted to Responses")
+    const convertedAnthropicRequest = requiredValue(seen.at(-1), "converted Anthropic upstream request should exist")
+    assert.strictEqual(convertedAnthropicRequest.url, "/v1/responses")
+    assert.strictEqual(convertedAnthropicRequest.body?.model, "claude-target", "converted requests should apply model mappings")
+    assert.strictEqual(convertedAnthropicRequest.headers["x-api-key"], "test-key", "converted requests should preserve the API key")
+    assert.strictEqual(
+      convertedAnthropicRequest.headers["anthropic-version"],
+      undefined,
+      "converted requests must not forward Anthropic protocol headers to Responses",
+    )
+    assert.strictEqual(convertedAnthropicRequest.body?.reasoning, undefined, "converted requests must not add Codex reasoning")
+    assert.strictEqual(convertedAnthropicRequest.body?.include, undefined, "converted requests must not add Codex include fields")
+    assert.strictEqual(
+      convertedAnthropicRequest.body?.client_metadata,
+      undefined,
+      "converted requests must not add Codex client metadata",
+    )
     const routeOnlyLogCount = store.logs.length
     const routeOnlyContextCount = contexts.contexts.length
     config.forwardEnabled = false
