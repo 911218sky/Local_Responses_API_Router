@@ -808,7 +808,7 @@ code {
   }
 }
 .dialog {
-  width: min(500px, calc(100vw - 32px));
+  width: min(760px, calc(100vw - 32px));
   padding: 20px;
   border: 3px solid var(--color-border);
   border-radius: var(--radius-panel);
@@ -875,7 +875,7 @@ code {
 }
 .mapping-row {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1fr) auto auto auto;
+  grid-template-columns: auto minmax(170px, 1fr) auto minmax(170px, 1fr) auto auto auto;
   align-items: center;
   gap: 6px;
 }
