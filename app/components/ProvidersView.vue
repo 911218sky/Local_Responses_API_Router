@@ -219,8 +219,10 @@ async function copyRouterUrl(provider: Provider): Promise<void> {
         </div>
       </template>
     </section>
-    <dialog :open="dialogOpen" class="dialog" @close="dialogOpen = false">
-      <form method="dialog" @submit.prevent="save">
+    <Teleport to="body">
+      <div v-if="dialogOpen" class="dialog-layer" role="presentation" @click.self="dialogOpen = false">
+        <dialog open class="dialog" role="dialog" aria-modal="true" :aria-label="editing ? t('editProvider') : t('addProvider')">
+          <form @submit.prevent="save">
         <div class="dialog-head">
           <h2>{{ editing ? t("editProvider") : t("addProvider") }}</h2>
           <button class="icon-button" type="button" :aria-label="t('close')" @click="dialogOpen = false">
@@ -304,7 +306,9 @@ async function copyRouterUrl(provider: Provider): Promise<void> {
           <button type="button" @click="dialogOpen = false">{{ t("cancelDialog") }}</button>
           <button class="primary-button" type="submit">{{ t("saveProvider") }}</button>
         </div>
-      </form>
-    </dialog>
+          </form>
+        </dialog>
+      </div>
+    </Teleport>
   </section>
 </template>

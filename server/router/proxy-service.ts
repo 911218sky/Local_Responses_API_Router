@@ -198,7 +198,9 @@ class ProxyService extends EventEmitter {
       const requestBody = modelRewrite.bodyBuffer
       const config = this.getConfig()
       const started = Date.now()
-      if (isAnthropicMessagesPath(route.upstreamPath)) {
+      // A route-only provider is already Anthropic-compatible. Preserve its Messages
+      // request instead of translating it through the OpenAI Responses endpoint.
+      if (isAnthropicMessagesPath(route.upstreamPath) && route.provider.routeOnly !== true) {
         try {
           await this.handleAnthropicMessages(route, req, res, rawBody, activeRequest.id, started, config)
         } catch (error) {

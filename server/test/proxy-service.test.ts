@@ -77,6 +77,11 @@ const upstream = http.createServer((req, res) => {
       res.end(JSON.stringify({ ok: true }))
       return
     }
+    if (req.url === "/v1/messages") {
+      res.writeHead(200, { "content-type": "application/json" })
+      res.end(JSON.stringify({ type: "message", content: [] }))
+      return
+    }
     if (req.url === "/v1/capacity") {
       capacityAttempts += 1
       if (capacityAttempts < 3) {
@@ -190,6 +195,7 @@ function postRaw(
   authorization = "Bearer test",
   interactionId = "test-session",
   userAgent = "Incoming test UA",
+  apiKey?: string,
 ): Promise<number | undefined> {
   return new Promise<number | undefined>((resolve, reject) => {
     const request = http.request(
@@ -205,6 +211,7 @@ function postRaw(
           "content-length": body.length,
           "x-interaction-id": interactionId,
           "user-agent": userAgent,
+          ...(apiKey ? { "x-api-key": apiKey } : {}),
         },
       },
       (response) => {
@@ -395,6 +402,7 @@ test("Given configured upstream providers, When the router handles compatible re
           baseUrl: `http://127.0.0.1:${upstreamPort}/v1`,
           enabled: true,
           routeOnly: true,
+          modelMappings: [{ from: "claude-source", to: "claude-target" }],
         },
       ],
     }
@@ -949,6 +957,22 @@ test("Given configured upstream providers, When the router handles compatible re
     assert.strictEqual(disconnectBeforeDataAttempts, 2, "a disconnect before the first body chunk should retry")
     assert(retriedStream.body.includes("resp_retried"), "the client should receive the successful retry stream")
 
+    const anthropicBody = Buffer.from(
+      '{"model":"claude-source","max_tokens":16,"messages":[{"role":"user","content":"hello"}]}',
+    )
+    const anthropicStatus = await postRaw(
+      "/direct/v1/messages",
+      anthropicBody,
+      "Bearer test",
+      "anthropic-route-only",
+      "Incoming test UA",
+      "test-key",
+    )
+    assert.strictEqual(anthropicStatus, 200, "route-only Anthropic Messages requests should reach the upstream directly")
+    const anthropicRequest = requiredValue(seen.at(-1), "Anthropic upstream request should exist")
+    assert.strictEqual(anthropicRequest.url, "/v1/messages")
+    assert.strictEqual(anthropicRequest.body?.model, "claude-target", "route-only Anthropic requests should still apply model mappings")
+    assert.strictEqual(anthropicRequest.headers["x-api-key"], "test-key", "route-only Anthropic requests should preserve the API key")
     const routeOnlyLogCount = store.logs.length
     const routeOnlyContextCount = contexts.contexts.length
     config.forwardEnabled = false

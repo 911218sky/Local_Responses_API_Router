@@ -807,9 +807,19 @@ code {
     transform: rotate(360deg);
   }
 }
+.dialog-layer {
+  position: fixed;
+  z-index: 100;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: var(--color-backdrop);
+}
 .dialog {
-  width: min(760px, calc(100vw - 32px));
+  width: min(760px, 100%);
   max-height: calc(100dvh - 32px);
+  margin: 0;
   box-sizing: border-box;
   padding: 20px;
   border: 3px solid var(--color-border);
@@ -819,9 +829,6 @@ code {
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
-}
-.dialog::backdrop {
-  background: var(--color-backdrop);
 }
 .dialog form {
   display: grid;
