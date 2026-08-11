@@ -136,6 +136,23 @@ async function copyRouterUrl(provider: Provider): Promise<void> {
             <button
               class="icon-button"
               type="button"
+              :title="copiedProviderId === provider.id ? t('copiedRouterUrl') : t('copyRouterUrl')"
+              :aria-label="copiedProviderId === provider.id ? t('copiedRouterUrl') : t('copyRouterUrl')"
+              @click="copyRouterUrl(provider)"
+            >
+              <Check v-if="copiedProviderId === provider.id" :size="15" />
+              <Copy v-else :size="15" />
+            </button>
+          </div>
+          <span class="truncate mono">{{ provider.baseUrl }}</span>
+          <span class="status-badge" :class="provider.enabled ? 'running' : 'stopped'">
+            {{ provider.enabled ? t("enabled") : t("disabled") }}
+          </span>
+          <span>{{ provider.routeOnly ? t("routeOnly") : t("conversion") }}</span>
+          <div class="row-actions">
+            <button
+              class="icon-button"
+              type="button"
               :title="t('cloneRoute')"
               :aria-label="t('cloneRoute')"
               @click="clone(provider, 'route')"
@@ -151,23 +168,6 @@ async function copyRouterUrl(provider: Provider): Promise<void> {
             >
               <Copy :size="15" />
             </button>
-            <button
-              class="icon-button"
-              type="button"
-              :title="copiedProviderId === provider.id ? t('copiedRouterUrl') : t('copyRouterUrl')"
-              :aria-label="copiedProviderId === provider.id ? t('copiedRouterUrl') : t('copyRouterUrl')"
-              @click="copyRouterUrl(provider)"
-            >
-              <Check v-if="copiedProviderId === provider.id" :size="15" />
-              <Copy v-else :size="15" />
-            </button>
-          </div>
-          <span class="truncate mono">{{ provider.baseUrl }}</span>
-          <span class="status-badge" :class="provider.enabled ? 'running' : 'stopped'">
-            {{ provider.enabled ? t("enabled") : t("disabled") }}
-          </span>
-          <span>{{ provider.routeOnly ? t("routeOnly") : t("conversion") }}</span>
-          <div class="row-actions">
             <button
               class="icon-button"
               type="button"

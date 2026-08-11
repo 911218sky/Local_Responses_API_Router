@@ -538,7 +538,7 @@ code {
 .table-head,
 .table-row {
   display: grid;
-  grid-template-columns: minmax(130px, 1fr) 130px minmax(220px, 1.7fr) 74px 72px 140px;
+  grid-template-columns: minmax(130px, 1fr) 130px minmax(220px, 1.7fr) 86px 72px 190px;
   gap: 12px;
   min-width: 920px;
   align-items: center;
@@ -557,6 +557,11 @@ code {
   min-width: 0;
   align-items: center;
   gap: 8px;
+}
+.row-actions {
+  flex-wrap: wrap;
+  min-width: 0;
+  gap: 6px;
 }
 .route-id-cell code {
   min-width: 0;
