@@ -21,6 +21,12 @@ import type { RequestLogStore } from "../storage/request-log"
 import type { ResponseContextStore } from "../storage/response-context"
 import { type ActiveRequest, ActiveRequestTracker, type PublicActiveRequest } from "./active-request-tracker"
 import {
+  AnthropicCompatibilityError,
+  anthropicError,
+  anthropicToResponses,
+  responsesToAnthropic,
+} from "./anthropic-compat"
+import {
   delay,
   errorCode,
   errorStatus,
@@ -194,6 +200,16 @@ class ProxyService extends EventEmitter {
       const rawBody = Buffer.concat(chunks)
       const config = this.getConfig()
       const started = Date.now()
+      if (isAnthropicMessagesPath(route.upstreamPath)) {
+        try {
+          await this.handleAnthropicMessages(route, req, res, rawBody, activeRequest.id, started, config)
+        } catch (error) {
+          this.activeRequests.finish(activeRequest.id)
+          if (error instanceof RequestCancelledError) return
+          this.fail(res, null, error, Date.now() - started)
+        }
+        return
+      }
       const routeOnly = route.provider.routeOnly === true
       let outbound: OutboundRequest = routeOnly
         ? { headers: { ...req.headers }, bodyBuffer: rawBody, method: req.method || "GET", path: route.upstreamPath }
@@ -293,6 +309,278 @@ class ProxyService extends EventEmitter {
         if (error instanceof RequestCancelledError) return
         this.fail(res, logId, error, Date.now() - started)
       }
+    })
+  }
+
+  async handleAnthropicMessages(
+    route: Route,
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+    rawBody: Buffer,
+    activeId: string,
+    started: number,
+    config: RouterConfig,
+  ): Promise<void> {
+    if (route.provider.routeOnly)
+      throw new AnthropicCompatibilityError("Anthropic compatibility requires request transformation.")
+    if (!config.forwardEnabled) throw new HttpError(503, "Forwarding is disabled in the dashboard.")
+    const incoming = tryJson(rawBody)
+    const anthropic = anthropicToResponses(incoming)
+    const transformed = transformToCodex(
+      req.headers,
+      Buffer.from(JSON.stringify(anthropic.request)),
+      "/responses",
+      config.codexProfile,
+      this.contextStore,
+    )
+    const logId = this.logStore.create({
+      provider: publicProvider(route.provider),
+      method: req.method || "POST",
+      path: req.url || "/",
+      localUrl: `http://127.0.0.1:${config.routerPort}${req.url || "/"}`,
+      sessionId: transformed.sessionId,
+      sourceInteractionId: transformed.sourceInteractionId,
+      inbound: { headers: redactHeaders(req.headers), body: incoming, bytes: rawBody.length },
+      transform: transformed.trace,
+      outbound: logOutbound({
+        headers: transformed.headers,
+        body: transformed.request,
+        bodyBuffer: transformed.body,
+        method: transformed.method,
+        path: transformed.path,
+      }),
+    })
+    this.activeRequests.update(activeId, {
+      sessionId: transformed.sessionId,
+      sourceInteractionId: transformed.sourceInteractionId,
+    })
+    await this.forwardAnthropic(
+      route.provider,
+      {
+        headers: transformed.headers,
+        bodyBuffer: transformed.body,
+        method: transformed.method,
+        path: transformed.path,
+      },
+      anthropic.model,
+      anthropic.stream,
+      res,
+      logId,
+      started,
+      activeId,
+    )
+  }
+
+  async forwardAnthropic(
+    provider: Provider,
+    outbound: Pick<OutboundRequest, "headers" | "bodyBuffer" | "method" | "path">,
+    requestedModel: string,
+    stream: boolean,
+    clientRes: http.ServerResponse,
+    logId: string | null,
+    started: number,
+    activeId: string,
+  ): Promise<void> {
+    const targetUrl = new URL(provider.baseUrl)
+    const basePath = targetUrl.pathname.endsWith("/") ? targetUrl.pathname.slice(0, -1) : targetUrl.pathname
+    const finalPath = `${basePath}${outbound.path}`
+    const protocol = targetUrl.protocol === "https:" ? https : http
+    const upstream = await makeRequest(
+      protocol,
+      {
+        hostname: targetUrl.hostname,
+        port: targetUrl.port || (targetUrl.protocol === "https:" ? 443 : 80),
+        path: finalPath,
+        method: outbound.method,
+        headers: { ...outbound.headers, host: targetUrl.host },
+      },
+      outbound.bodyBuffer,
+      this.activeRequests.get(activeId),
+    )
+    const statusCode = upstream.statusCode || 502
+    this.activeRequests.update(activeId, { status: "streaming", responseStatus: statusCode })
+    if (statusCode >= 400) {
+      const body = tryJson(await readResponseBody(upstream))
+      const error = anthropicError(statusCode, body)
+      sendJson(clientRes, statusCode, error)
+      this.logStore.finalize(logId, {
+        status: "upstream_error",
+        responseStatus: statusCode,
+        durationMs: Date.now() - started,
+        target: `${targetUrl.origin}${finalPath}`,
+        response: { headers: redactHeaders(upstream.headers), body, capturedBytes: 0, totalBytes: 0, truncated: false },
+        error: String(error.error && isJsonObject(error.error) ? error.error.message : "Upstream request failed."),
+        errorOrigin: "upstream",
+      })
+      this.activeRequests.finish(activeId)
+      return
+    }
+    const eventStream = headerValue(upstream.headers["content-type"])?.includes("text/event-stream") === true
+    if (stream && eventStream) {
+      this.pipeAnthropicStream(
+        upstream,
+        clientRes,
+        requestedModel,
+        logId,
+        started,
+        `${targetUrl.origin}${finalPath}`,
+        activeId,
+      )
+      return
+    }
+    const raw = await readResponseBody(upstream)
+    const response = responsesToAnthropic(tryJson(raw), requestedModel)
+    sendJson(clientRes, statusCode, response)
+    this.logStore.finalize(logId, {
+      status: "completed",
+      responseStatus: statusCode,
+      durationMs: Date.now() - started,
+      target: `${targetUrl.origin}${finalPath}`,
+      response: {
+        headers: redactHeaders(upstream.headers),
+        body: response,
+        capturedBytes: raw.length,
+        totalBytes: raw.length,
+        truncated: false,
+      },
+    })
+    this.activeRequests.finish(activeId)
+  }
+
+  pipeAnthropicStream(
+    upstream: http.IncomingMessage,
+    clientRes: http.ServerResponse,
+    model: string,
+    logId: string | null,
+    started: number,
+    target: string,
+    activeId: string,
+  ): void {
+    clientRes.writeHead(200, { "content-type": "text/event-stream; charset=utf-8", "cache-control": "no-cache" })
+    let pending = ""
+    let messageStarted = false
+    let nextIndex = 0
+    let usedToolCalls = false
+    const open = new Map<number, "text" | "tool_use">()
+    const startMessage = (id = "msg_router_stream"): void => {
+      if (messageStarted) return
+      messageStarted = true
+      writeAnthropicEvent(clientRes, "message_start", {
+        type: "message_start",
+        message: {
+          id,
+          type: "message",
+          role: "assistant",
+          model,
+          content: [],
+          stop_reason: null,
+          stop_sequence: null,
+          usage: { input_tokens: 0, output_tokens: 0 },
+        },
+      })
+    }
+    const startBlock = (index: number, type: "text" | "tool_use", item: JsonObject = {}): void => {
+      if (open.has(index)) return
+      startMessage()
+      open.set(index, type)
+      nextIndex = Math.max(nextIndex, index + 1)
+      writeAnthropicEvent(clientRes, "content_block_start", {
+        type: "content_block_start",
+        index,
+        content_block:
+          type === "text"
+            ? { type: "text", text: "" }
+            : {
+                type: "tool_use",
+                id: String(item.call_id || item.id || `toolu_${index}`),
+                name: String(item.name || "tool"),
+                input: {},
+              },
+      })
+    }
+    const closeBlock = (index: number): void => {
+      if (!open.has(index)) return
+      open.delete(index)
+      writeAnthropicEvent(clientRes, "content_block_stop", { type: "content_block_stop", index })
+    }
+    const handle = (event: JsonObject): void => {
+      const type = String(event.type || "")
+      if (type === "response.created" && isJsonObject(event.response))
+        startMessage(String(event.response.id || "msg_router_stream"))
+      else if (type === "response.output_item.added" && isJsonObject(event.item)) {
+        const index = typeof event.output_index === "number" ? event.output_index : nextIndex
+        if (event.item.type === "function_call") {
+          usedToolCalls = true
+          startBlock(index, "tool_use", event.item)
+        }
+      } else if (type === "response.output_text.delta") {
+        const index = typeof event.output_index === "number" ? event.output_index : nextIndex
+        startBlock(index, "text")
+        writeAnthropicEvent(clientRes, "content_block_delta", {
+          type: "content_block_delta",
+          index,
+          delta: { type: "text_delta", text: String(event.delta || "") },
+        })
+      } else if (type === "response.function_call_arguments.delta") {
+        const index = typeof event.output_index === "number" ? event.output_index : nextIndex
+        usedToolCalls = true
+        startBlock(index, "tool_use")
+        writeAnthropicEvent(clientRes, "content_block_delta", {
+          type: "content_block_delta",
+          index,
+          delta: { type: "input_json_delta", partial_json: String(event.delta || "") },
+        })
+      } else if (type === "response.output_item.done") {
+        const index = typeof event.output_index === "number" ? event.output_index : nextIndex - 1
+        closeBlock(index)
+      } else if (type === "response.completed") {
+        startMessage(isJsonObject(event.response) ? String(event.response.id || "msg_router_stream") : undefined)
+        for (const index of [...open.keys()]) closeBlock(index)
+        const output =
+          isJsonObject(event.response) && isJsonObject(event.response.usage) ? event.response.usage.output_tokens : 0
+        writeAnthropicEvent(clientRes, "message_delta", {
+          type: "message_delta",
+          delta: { stop_reason: usedToolCalls ? "tool_use" : "end_turn", stop_sequence: null },
+          usage: { output_tokens: typeof output === "number" ? output : 0 },
+        })
+        writeAnthropicEvent(clientRes, "message_stop", { type: "message_stop" })
+      }
+    }
+    upstream.setEncoding("utf8")
+    upstream.on("data", (chunk: string) => {
+      pending += chunk
+      let boundary = pending.indexOf("\n\n")
+      while (boundary >= 0) {
+        const block = pending.slice(0, boundary)
+        pending = pending.slice(boundary + 2)
+        const line = block.split(/\r?\n/).find((value) => value.startsWith("data:"))
+        if (line) {
+          try {
+            const parsed: unknown = JSON.parse(line.slice(5).trim())
+            if (isJsonObject(parsed)) handle(parsed)
+          } catch {}
+        }
+        boundary = pending.indexOf("\n\n")
+      }
+    })
+    upstream.on("end", () => {
+      if (messageStarted && !clientRes.writableEnded) clientRes.end()
+      this.logStore.finalize(logId, {
+        status: "completed",
+        responseStatus: 200,
+        durationMs: Date.now() - started,
+        target,
+      })
+      this.activeRequests.finish(activeId)
+    })
+    upstream.on("error", (error) => {
+      if (!clientRes.writableEnded) clientRes.end()
+      this.logStore.finalize(logId, {
+        status: "upstream_error",
+        error: errorMessage(error),
+        durationMs: Date.now() - started,
+      })
+      this.activeRequests.finish(activeId)
     })
   }
 
@@ -628,6 +916,17 @@ function resolveRoute(rawUrl: string | undefined, providers: readonly Provider[]
   if (!provider) return null
   return { provider, upstreamPath: `/${match[2] || ""}${url.search}` }
 }
+
+function isAnthropicMessagesPath(path: string): boolean {
+  const queryStart = path.indexOf("?")
+  const pathname = queryStart >= 0 ? path.slice(0, queryStart) : path
+  return pathname === "/messages"
+}
+
+function writeAnthropicEvent(res: http.ServerResponse, event: string, body: JsonObject): void {
+  if (!res.writableEnded) res.write(`event: ${event}\ndata: ${JSON.stringify(body)}\n\n`)
+}
+
 function makeRequest(
   protocol: Pick<typeof http, "request">,
   options: http.RequestOptions,
