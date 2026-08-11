@@ -8,6 +8,8 @@
 - 多供應商路由與獨立 Route ID。
 - 支援 Responses API、Chat Completions 與 Route only。
 - Dashboard 管理供應商、Router 狀態、請求紀錄與 Session。
+- 每條路由可獨立設定模型轉換（例如 `claude-sonnet-4-6` -> `gpt-5.6-terra`），也可使用 `*` 萬用來源模型。
+- 路由支援通用 API path 轉送，包括上游提供的 `/images/generations` 圖片生成端點。
 - Dashboard 驗證、深色模式及繁體中文、簡體中文、英文介面。
 - 使用單一 Docker 容器部署，設定與資料持久化於 `./data/`。
 
@@ -22,6 +24,19 @@ docker compose up --build -d
 ```text
 Dashboard: http://127.0.0.1:38127/
 Router:    http://127.0.0.1:38128/{provider}/v1
+
+### 模型轉換與圖片生成
+
+在 Dashboard 的提供商編輯視窗中新增模型 mapping。`from` 是客戶端送入的模型名稱，`to` 是該路由上游實際使用的模型名稱；精確名稱優先於 `*`。例如：
+
+```json
+"modelMappings": [
+  { "from": "gpt-5.6-sol", "to": "gpt-5.6-terra" },
+  { "from": "claude-sonnet-4-6", "to": "gpt-5.6-terra" }
+]
+```
+
+圖片請求可使用同一條路由：`POST /<provider>/v1/images/generations`。Router 會保留圖片 API payload，只套用該路由的模型 mapping、驗證與上游轉送設定。
 ```
 
 一般使用者只需要此單容器模式。啟動後在 Dashboard 新增 Provider，並使用它的

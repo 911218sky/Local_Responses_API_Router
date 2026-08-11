@@ -5,6 +5,12 @@ export interface Provider {
   baseUrl: string
   enabled: boolean
   routeOnly: boolean
+  modelMappings?: ModelMapping[]
+}
+
+export interface ModelMapping {
+  from: string
+  to: string
 }
 
 export interface RouterStatus {

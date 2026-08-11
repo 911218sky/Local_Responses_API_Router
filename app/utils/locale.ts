@@ -187,6 +187,12 @@ const messages: Record<Locale, MessageTable> = {
     resultWaiting: "取得模型後輸入問題，結果會顯示在這裡。",
     saveAsProvider: "儲存為正式提供商",
     providerSaved: "已儲存提供商",
+    modelMappings: "模型轉換",
+    modelMappingsHint: "將收到的模型名稱改送到此路由的上游模型；使用 * 可匹配任意來源模型。",
+    addMapping: "新增轉換",
+    cloneRoute: "複製完整路由",
+    cloneMapping: "只複製模型轉換",
+    cloneRouteSlug: "輸入複製路由識別",
   },
   "zh-Hans": {
     overview: "总览",
@@ -370,6 +376,12 @@ const messages: Record<Locale, MessageTable> = {
     resultWaiting: "获取模型后输入问题，结果会显示在这里。",
     saveAsProvider: "保存为正式提供商",
     providerSaved: "已保存提供商",
+    modelMappings: "模型转换",
+    modelMappingsHint: "将收到的模型名称改送到此路由的上游模型；使用 * 可匹配任意来源模型。",
+    addMapping: "新增转换",
+    cloneRoute: "复制完整路由",
+    cloneMapping: "只复制模型转换",
+    cloneRouteSlug: "输入复制路由标识",
   },
   en: {
     overview: "Overview",
@@ -555,6 +567,12 @@ const messages: Record<Locale, MessageTable> = {
     resultWaiting: "Load models and enter a question to see the result here.",
     saveAsProvider: "Save as a configured provider",
     providerSaved: "Provider saved",
+    modelMappings: "Model mappings",
+    modelMappingsHint: "Rewrite incoming model names for this route. Use * to match any source model.",
+    addMapping: "Add mapping",
+    cloneRoute: "Clone full route",
+    cloneMapping: "Clone mappings only",
+    cloneRouteSlug: "Enter the cloned route identifier",
   },
 }
 

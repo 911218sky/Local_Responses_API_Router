@@ -118,6 +118,7 @@ export function publicProvider(provider: Provider): PublicProvider {
     baseUrl: redactUrlCredentials(provider.baseUrl),
     enabled: provider.enabled,
     routeOnly: provider.routeOnly,
+    modelMappings: provider.modelMappings ?? [],
   }
 }
 

@@ -13,6 +13,12 @@ export interface Provider {
   readonly baseUrl: string
   readonly enabled: boolean
   readonly routeOnly: boolean
+  readonly modelMappings?: readonly ModelMapping[]
+}
+
+export interface ModelMapping {
+  readonly from: string
+  readonly to: string
 }
 
 export interface DashboardAuth {
@@ -58,6 +64,7 @@ export interface PublicProvider {
   readonly baseUrl: string
   readonly enabled: boolean
   readonly routeOnly: boolean
+  readonly modelMappings: readonly ModelMapping[]
 }
 
 export type PublicDashboardAuth = Omit<DashboardAuth, "passwordHash">

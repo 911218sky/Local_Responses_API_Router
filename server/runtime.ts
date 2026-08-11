@@ -99,6 +99,22 @@ export class RouterRuntime {
     return publicProvider(provider)
   }
 
+  async cloneProvider(id: string, value: Record<string, unknown>): Promise<object> {
+    const source = this.config.providers.find((provider) => provider.id === id)
+    if (!source) throw new Error("Provider not found.")
+    const mode = value.mode === "mapping" ? "mapping" : "route"
+    const clone = normalizeProvider({
+      ...(mode === "mapping" ? { name: `${source.name} model mapping`, modelMappings: source.modelMappings } : source),
+      ...(mode === "mapping" ? { baseUrl: source.baseUrl, routeOnly: source.routeOnly } : {}),
+      name: typeof value.name === "string" && value.name.trim() ? value.name : `${source.name} copy`,
+      slug: typeof value.slug === "string" ? value.slug : `${source.slug}-copy`,
+      id: undefined,
+    })
+    validateProvider(clone, this.config.providers)
+    this.config = saveConfig({ ...this.config, providers: [...this.config.providers, clone] })
+    return publicProvider(clone)
+  }
+
   removeProvider(id: string): void {
     if (!this.config.providers.some((provider) => provider.id === id)) throw new Error("Provider not found.")
     this.config = saveConfig({

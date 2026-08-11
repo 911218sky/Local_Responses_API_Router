@@ -120,6 +120,9 @@ async function providerRoute(
   id: string,
 ): Promise<unknown> {
   const decoded = decodeURIComponent(id)
+  if (event.method === "POST" && decoded.endsWith("/clone")) {
+    return runtime.cloneProvider(decoded.slice(0, -"/clone".length), await awaitBody(event))
+  }
   if (event.method === "PUT") return runtime.updateProvider(decoded, await awaitBody(event))
   if (event.method === "DELETE") {
     runtime.removeProvider(decoded)

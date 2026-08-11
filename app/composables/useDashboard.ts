@@ -119,6 +119,8 @@ export function useDashboard() {
   const addProvider = (provider: Omit<Provider, "id">) => mutate("/api/providers", "POST", provider)
   const updateProvider = (id: string, provider: Partial<Provider>) =>
     mutate(`/api/providers/${encodeURIComponent(id)}`, "PUT", provider)
+  const cloneProvider = (id: string, options: { slug: string; mode: "route" | "mapping" }) =>
+    mutate(`/api/providers/${encodeURIComponent(id)}/clone`, "POST", options)
   const removeProvider = (id: string) => mutate(`/api/providers/${encodeURIComponent(id)}`, "DELETE")
   const clearLogs = () => mutate("/api/logs", "DELETE")
   const cancelRequest = (id: string) => mutate(`/api/active-requests/${encodeURIComponent(id)}/cancel`)
@@ -146,6 +148,7 @@ export function useDashboard() {
     saveConfig,
     addProvider,
     updateProvider,
+    cloneProvider,
     removeProvider,
     clearLogs,
     cancelRequest,

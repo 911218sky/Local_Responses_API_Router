@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Check, Copy, Pencil, Plus, Trash2, X } from "lucide-vue-next"
+import { Check, Copy, CopyPlus, Pencil, Plus, Trash2, X } from "lucide-vue-next"
 import { ref } from "vue"
 import { useLocale } from "~/composables/useLocale"
 import type { Provider } from "~/types"
@@ -8,7 +8,14 @@ import { providerRouterUrl } from "~/utils/router-url"
 const props = defineProps<{ dashboard: ReturnType<typeof import("~/composables/useDashboard").useDashboard> }>()
 const dialogOpen = ref(false)
 const editing = ref<Provider | null>(null)
-const form = ref({ name: "", slug: "", baseUrl: "", enabled: true, routeOnly: false })
+const form = ref({
+  name: "",
+  slug: "",
+  baseUrl: "",
+  enabled: true,
+  routeOnly: false,
+  modelMappings: [] as { from: string; to: string }[],
+})
 const formError = ref("")
 const copyMessage = ref("")
 const copiedProviderId = ref<string | null>(null)
@@ -24,10 +31,30 @@ function open(provider?: Provider): void {
         baseUrl: provider.baseUrl,
         enabled: provider.enabled,
         routeOnly: provider.routeOnly,
+        modelMappings: (provider.modelMappings ?? []).map((mapping) => ({ ...mapping })),
       }
-    : { name: "", slug: "", baseUrl: "", enabled: true, routeOnly: false }
+    : { name: "", slug: "", baseUrl: "", enabled: true, routeOnly: false, modelMappings: [] }
   formError.value = ""
   dialogOpen.value = true
+}
+
+function addMapping(): void {
+  form.value.modelMappings.push({ from: "", to: "" })
+}
+
+function removeMapping(index: number): void {
+  form.value.modelMappings.splice(index, 1)
+}
+
+async function clone(provider: Provider, mode: "route" | "mapping"): Promise<void> {
+  const suffix = mode === "mapping" ? "-mapping-copy" : "-copy"
+  const slug = window.prompt(t("cloneRouteSlug"), `${provider.slug}${suffix}`)?.trim()
+  if (!slug) return
+  try {
+    await props.dashboard.cloneProvider(provider.id, { slug, mode })
+  } catch (cause) {
+    copyMessage.value = cause instanceof Error ? cause.message : String(cause)
+  }
 }
 
 async function save(): Promise<void> {
@@ -109,6 +136,24 @@ async function copyRouterUrl(provider: Provider): Promise<void> {
             <button
               class="icon-button"
               type="button"
+              :title="t('cloneRoute')"
+              :aria-label="t('cloneRoute')"
+              @click="clone(provider, 'route')"
+            >
+              <CopyPlus :size="15" />
+            </button>
+            <button
+              class="icon-button"
+              type="button"
+              :title="t('cloneMapping')"
+              :aria-label="t('cloneMapping')"
+              @click="clone(provider, 'mapping')"
+            >
+              <Copy :size="15" />
+            </button>
+            <button
+              class="icon-button"
+              type="button"
               :title="copiedProviderId === provider.id ? t('copiedRouterUrl') : t('copyRouterUrl')"
               :aria-label="copiedProviderId === provider.id ? t('copiedRouterUrl') : t('copyRouterUrl')"
               @click="copyRouterUrl(provider)"
@@ -173,6 +218,19 @@ async function copyRouterUrl(provider: Provider): Promise<void> {
           <input v-model="form.enabled" type="checkbox">
           <i />
         </label>
+        <fieldset class="mapping-fieldset">
+          <legend>{{ t("modelMappings") }}</legend>
+          <small>{{ t("modelMappingsHint") }}</small>
+          <div v-for="(mapping, index) in form.modelMappings" :key="index" class="mapping-row">
+            <input v-model.trim="mapping.from" required placeholder="source-model or *" autocomplete="off">
+            <span>→</span>
+            <input v-model.trim="mapping.to" required placeholder="target-model" autocomplete="off">
+            <button class="icon-button danger-button" type="button" :title="t('delete')" @click="removeMapping(index)">
+              <Trash2 :size="14" />
+            </button>
+          </div>
+          <button class="secondary-button" type="button" @click="addMapping"><Plus :size="14" /> {{ t("addMapping") }}</button>
+        </fieldset>
         <label class="toggle-row">
           <span>
             <b>{{ t("routeOnly") }}</b>

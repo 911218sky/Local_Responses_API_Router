@@ -20,12 +20,7 @@ import {
 import type { RequestLogStore } from "../storage/request-log"
 import type { ResponseContextStore } from "../storage/response-context"
 import { type ActiveRequest, ActiveRequestTracker, type PublicActiveRequest } from "./active-request-tracker"
-import {
-  AnthropicCompatibilityError,
-  anthropicError,
-  anthropicToResponses,
-  responsesToAnthropic,
-} from "./anthropic-compat"
+import { anthropicError, anthropicToResponses, responsesToAnthropic } from "./anthropic-compat"
 import {
   delay,
   errorCode,
@@ -198,6 +193,8 @@ class ProxyService extends EventEmitter {
     })
     req.on("end", async () => {
       const rawBody = Buffer.concat(chunks)
+      const modelRewrite = rewriteModelBuffer(rawBody, route.provider.modelMappings ?? [])
+      const requestBody = modelRewrite.bodyBuffer
       const config = this.getConfig()
       const started = Date.now()
       if (isAnthropicMessagesPath(route.upstreamPath)) {
@@ -212,11 +209,16 @@ class ProxyService extends EventEmitter {
       }
       const routeOnly = route.provider.routeOnly === true
       let outbound: OutboundRequest = routeOnly
-        ? { headers: { ...req.headers }, bodyBuffer: rawBody, method: req.method || "GET", path: route.upstreamPath }
+        ? {
+            headers: { ...req.headers },
+            bodyBuffer: requestBody,
+            method: req.method || "GET",
+            path: route.upstreamPath,
+          }
         : {
             headers: { ...req.headers },
-            body: jsonObjectFrom(tryJson(rawBody)),
-            bodyBuffer: rawBody,
+            body: jsonObjectFrom(tryJson(requestBody)),
+            bodyBuffer: requestBody,
             method: req.method || "GET",
             path: route.upstreamPath,
           }
@@ -259,7 +261,7 @@ class ProxyService extends EventEmitter {
         if (!routeOnly && config.transformEnabled && isResponsesPath(route.upstreamPath)) {
           const transformed = transformToCodex(
             req.headers,
-            rawBody,
+            requestBody,
             route.upstreamPath,
             config.codexProfile,
             this.contextStore,
@@ -275,6 +277,15 @@ class ProxyService extends EventEmitter {
             previousResponseId: transformed.previousResponseId,
           }
           transform = transformed.trace
+          if (modelRewrite.changed) {
+            transform.operations.push({
+              type: "transformed",
+              scope: "body",
+              from: `body.model=${modelRewrite.from}`,
+              to: `body.model=${modelRewrite.to}`,
+              label: `Mapped model for provider ${route.provider.slug}`,
+            })
+          }
           transform.operations.unshift({
             type: "transformed",
             scope: "routing",
@@ -322,7 +333,8 @@ class ProxyService extends EventEmitter {
     config: RouterConfig,
   ): Promise<void> {
     if (!config.forwardEnabled) throw new HttpError(503, "Forwarding is disabled in the dashboard.")
-    const incoming = tryJson(rawBody)
+    const rewritten = rewriteModelObject(tryJson(rawBody), route.provider.modelMappings ?? [])
+    const incoming = isJsonObject(rewritten.body) ? rewritten.body : {}
     const anthropic = anthropicToResponses(incoming)
     const transformed = transformToCodex(
       req.headers,
@@ -360,7 +372,7 @@ class ProxyService extends EventEmitter {
         method: transformed.method,
         path: transformed.path,
       },
-      anthropic.model,
+      rewritten.to || anthropic.model,
       anthropic.stream,
       res,
       logId,
@@ -979,6 +991,27 @@ function logOutbound(outbound: OutboundRequest): Record<string, unknown> {
 function jsonObjectFrom(value: JsonObject): JsonObject {
   return value
 }
+
+function rewriteModelBuffer(
+  rawBody: Buffer,
+  mappings: readonly { readonly from: string; readonly to: string }[],
+): { readonly bodyBuffer: Buffer; readonly changed: boolean; readonly from?: string; readonly to?: string } {
+  const parsed = tryJson(rawBody)
+  const rewritten = rewriteModelObject(parsed, mappings)
+  return rewritten.changed
+    ? { bodyBuffer: Buffer.from(JSON.stringify(rewritten.body)), ...rewritten }
+    : { bodyBuffer: rawBody, ...rewritten }
+}
+
+function rewriteModelObject(
+  value: unknown,
+  mappings: readonly { readonly from: string; readonly to: string }[],
+): { readonly body: unknown; readonly changed: boolean; readonly from?: string; readonly to?: string } {
+  if (!isJsonObject(value) || typeof value.model !== "string") return { body: value, changed: false }
+  const mapping = mappings.find((item) => item.from === value.model) ?? mappings.find((item) => item.from === "*")
+  if (!mapping?.to || mapping.to === value.model) return { body: value, changed: false }
+  return { body: { ...value, model: mapping.to }, changed: true, from: value.model, to: mapping.to }
+}
 class HttpError extends Error {
   constructor(
     readonly status: number,
@@ -998,4 +1031,4 @@ function shouldRetryUpstreamStatus(statusCode: number): boolean {
   return statusCode === 408 || statusCode === 425 || statusCode === 429 || statusCode >= 500
 }
 
-export { isCapacityError, ProxyService, resolveRoute, shouldRetryUpstreamStatus }
+export { isCapacityError, ProxyService, resolveRoute, rewriteModelObject, shouldRetryUpstreamStatus }

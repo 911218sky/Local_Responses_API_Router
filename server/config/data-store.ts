@@ -4,6 +4,7 @@ import {
   type CodexProfile,
   type DashboardAuth,
   errorMessage,
+  type ModelMapping,
   objectFromUnknown,
   type Provider,
   type RouterConfig,
@@ -144,7 +145,16 @@ function normalizeProvider(value: unknown): Provider {
     baseUrl: stringOr(provider.baseUrl).trim().replace(/\/$/, ""),
     enabled: provider.enabled !== false,
     routeOnly: provider.routeOnly === true,
+    modelMappings: normalizeModelMappings(provider.modelMappings),
   }
+}
+
+function normalizeModelMappings(value: unknown): ModelMapping[] {
+  if (!Array.isArray(value)) return []
+  return value
+    .map((item) => objectFromUnknown(item))
+    .map((item) => ({ from: stringOr(item.from).trim(), to: stringOr(item.to).trim() }))
+    .filter((item) => item.from.length > 0 && item.to.length > 0)
 }
 
 function stringOr(value: unknown, fallback = ""): string {
