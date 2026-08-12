@@ -11,7 +11,7 @@ test("provider model mappings use the first exact or pattern match in configured
     baseUrl: "https://example.test/v1",
     modelMappings: [
       { from: "gpt-5.6-terra", to: "gpt-image-2" },
-      { from: "claude-haiku-4-5*", to: "gpt-5.6-terra" },
+      { from: "claude-haiku-4-5*", to: "gpt-5.6-terra", route: "messages" },
       { from: "claude-sonnet-?-20251001", to: "gpt-5.6-terra" },
       { from: "*", to: "nano-banana-2" },
     ],
@@ -24,6 +24,11 @@ test("provider model mappings use the first exact or pattern match in configured
     to: "gpt-image-2",
   })
   assert.strictEqual(rewriteModelObject({ model: "claude-haiku-4-5-20251001" }, mappings).to, "gpt-5.6-terra")
+  assert.strictEqual(
+    (provider.modelMappings ?? []).find((mapping) => mapping.from === "claude-haiku-4-5*")?.route,
+    "messages",
+    "each mapping should preserve its configured upstream route",
+  )
   assert.strictEqual(rewriteModelObject({ model: "claude-sonnet-5-20251001" }, mappings).to, "gpt-5.6-terra")
   assert.strictEqual(rewriteModelObject({ model: "any-image-model" }, mappings).to, "nano-banana-2")
   assert.strictEqual(

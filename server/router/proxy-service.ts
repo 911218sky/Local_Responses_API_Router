@@ -336,8 +336,15 @@ class ProxyService extends EventEmitter {
     config: RouterConfig,
   ): Promise<void> {
     if (!config.forwardEnabled) throw new HttpError(503, "Forwarding is disabled in the dashboard.")
-    const rewritten = rewriteModelObject(tryJson(rawBody), route.provider.modelMappings ?? [])
+    const mappings = route.provider.modelMappings ?? []
+    const original = tryJson(rawBody)
+    const rewritten = rewriteModelObject(original, mappings)
     const incoming = isJsonObject(rewritten.body) ? rewritten.body : {}
+    const mapping = isJsonObject(original) ? matchingModelMapping(original, mappings) : undefined
+    if (mapping?.route === "messages") {
+      await this.forwardAnthropicMessages(route, req, res, rawBody, rewritten, activeId, started)
+      return
+    }
     const anthropic = anthropicToResponses(incoming)
     // Anthropic-compatible clients need a plain OpenAI Responses request here. Applying the
     // Codex transform adds Codex-only fields which Claude-compatible upstreams may reject.
@@ -397,6 +404,50 @@ class ProxyService extends EventEmitter {
       started,
       activeId,
     )
+  }
+
+  async forwardAnthropicMessages(
+    route: Route,
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+    rawBody: Buffer,
+    rewritten: ReturnType<typeof rewriteModelObject>,
+    activeId: string,
+    started: number,
+  ): Promise<void> {
+    const bodyBuffer = rewritten.changed ? Buffer.from(JSON.stringify(rewritten.body)) : rawBody
+    const sessionId = resolveSessionId(req.headers, route.provider)
+    const outbound: OutboundRequest = {
+      headers: { ...req.headers, "content-length": String(bodyBuffer.length) },
+      ...(isJsonObject(rewritten.body) ? { body: rewritten.body } : {}),
+      bodyBuffer,
+      method: req.method || "POST",
+      path: "/messages",
+      sessionId,
+    }
+    const logId = this.logStore.create({
+      provider: publicProvider(route.provider),
+      method: req.method || "POST",
+      path: req.url || "/",
+      localUrl: `http://127.0.0.1:${this.getConfig().routerPort}${req.url || "/"}`,
+      sessionId,
+      inbound: { headers: redactHeaders(req.headers), body: tryJson(rawBody), bytes: rawBody.length },
+      transform: {
+        mode: "passthrough",
+        operations: [
+          {
+            type: "passed",
+            scope: "routing",
+            from: req.url || "/",
+            to: "/messages",
+            label: "Forwarded this model through its configured native Anthropic Messages route",
+          },
+        ],
+      },
+      outbound: logOutbound(outbound),
+    })
+    this.activeRequests.update(activeId, { sessionId })
+    await this.forward(route.provider, outbound, res, logId, started, this.getConfig(), true, activeId)
   }
 
   async forwardAnthropic(
@@ -1038,9 +1089,15 @@ function rewriteModelObject(
 ): { readonly body: unknown; readonly changed: boolean; readonly from?: string; readonly to?: string } {
   if (!isJsonObject(value) || typeof value.model !== "string") return { body: value, changed: false }
   const model = value.model
-  const mapping = mappings.find((item) => item.enabled !== false && (item.from === model || matchesModelPattern(item.from, model)))
+  const mapping = matchingModelMapping(value, mappings)
   if (!mapping?.to || mapping.to === model) return { body: value, changed: false }
   return { body: { ...value, model: mapping.to }, changed: true, from: model, to: mapping.to }
+}
+
+function matchingModelMapping(value: JsonObject, mappings: readonly ModelMapping[]): ModelMapping | undefined {
+  const model = value.model
+  if (typeof model !== "string") return undefined
+  return mappings.find((item) => item.enabled !== false && (item.from === model || matchesModelPattern(item.from, model)))
 }
 
 function matchesModelPattern(pattern: string, model: string): boolean {

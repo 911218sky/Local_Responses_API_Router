@@ -405,7 +405,10 @@ test("Given configured upstream providers, When the router handles compatible re
           baseUrl: `http://127.0.0.1:${upstreamPort}/v1`,
           enabled: true,
           routeOnly: false,
-          modelMappings: [{ from: "claude-source", to: "claude-target" }],
+          modelMappings: [
+            { from: "claude-source", to: "claude-target" },
+            { from: "claude-native", to: "claude-native-target", route: "messages" },
+          ],
         },
         {
           id: "direct",
@@ -1011,6 +1014,19 @@ test("Given configured upstream providers, When the router handles compatible re
       undefined,
       "converted requests must not add Codex client metadata",
     )
+    const nativeAnthropicStatus = await postRaw(
+      "/local/v1/messages",
+      Buffer.from('{"model":"claude-native","max_tokens":16,"messages":[{"role":"user","content":"hello"}]}'),
+      "Bearer test",
+      "anthropic-native",
+      "Incoming test UA",
+      "test-key",
+    )
+    assert.strictEqual(nativeAnthropicStatus, 200, "native Anthropic mapping should reach the Messages endpoint")
+    const nativeAnthropicRequest = requiredValue(seen.at(-1), "native Anthropic upstream request should exist")
+    assert.strictEqual(nativeAnthropicRequest.url, "/v1/messages")
+    assert.strictEqual(nativeAnthropicRequest.body?.model, "claude-native-target")
+    assert.strictEqual(nativeAnthropicRequest.headers["anthropic-version"], undefined, "test request has no Anthropic protocol header")
     const routeOnlyLogCount = store.logs.length
     const routeOnlyContextCount = contexts.contexts.length
     config.forwardEnabled = false

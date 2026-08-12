@@ -14,13 +14,14 @@ const form = ref({
   baseUrl: "",
   enabled: true,
   routeOnly: false,
-  modelMappings: [] as { from: string; to: string; enabled: boolean }[],
+  modelMappings: [] as { from: string; to: string; enabled: boolean; route: "responses" | "messages" }[],
 })
 const formError = ref("")
 const copyMessage = ref("")
 const copiedProviderId = ref<string | null>(null)
 let copyResetTimer: ReturnType<typeof window.setTimeout> | undefined
 const draggedMappingIndex = ref<number | null>(null)
+const selectedTargetModel = ref("")
 const { t } = useLocale()
 
 function open(provider?: Provider): void {
@@ -32,15 +33,20 @@ function open(provider?: Provider): void {
         baseUrl: provider.baseUrl,
         enabled: provider.enabled,
         routeOnly: provider.routeOnly,
-        modelMappings: (provider.modelMappings ?? []).map((mapping) => ({ ...mapping, enabled: mapping.enabled !== false })),
+        modelMappings: (provider.modelMappings ?? []).map((mapping) => ({
+          ...mapping,
+          enabled: mapping.enabled !== false,
+          route: mapping.route === "messages" ? "messages" : "responses",
+        })),
       }
     : { name: "", slug: "", baseUrl: "", enabled: true, routeOnly: false, modelMappings: [] }
+  selectedTargetModel.value = ""
   formError.value = ""
   dialogOpen.value = true
 }
 
 function addMapping(): void {
-  form.value.modelMappings.push({ from: "", to: "", enabled: true })
+  form.value.modelMappings.push({ from: "", to: "", enabled: true, route: "responses" })
 }
 
 function removeMapping(index: number): void {
@@ -73,6 +79,21 @@ const allMappingsEnabled = computed(() => form.value.modelMappings.length > 0 &&
 function toggleAllMappings(): void {
   const enabled = !allMappingsEnabled.value
   for (const mapping of form.value.modelMappings) mapping.enabled = enabled
+}
+
+const targetModelChoices = computed(() => {
+  const choices = new Set(["claude-sonnet-5", "gpt-5.6-terra"])
+  for (const mapping of form.value.modelMappings) {
+    if (mapping.to) choices.add(mapping.to)
+  }
+  return [...choices]
+})
+
+function applyTargetModel(): void {
+  if (!selectedTargetModel.value) return
+  for (const mapping of form.value.modelMappings) {
+    if (mapping.enabled) mapping.to = selectedTargetModel.value
+  }
 }
 
 async function clone(provider: Provider, mode: "route" | "mapping"): Promise<void> {
@@ -257,6 +278,17 @@ async function copyRouterUrl(provider: Provider): Promise<void> {
             </button>
           </legend>
           <small>{{ t("modelMappingsHint") }}</small>
+          <datalist id="provider-target-models">
+            <option v-for="model in targetModelChoices" :key="model" :value="model" />
+          </datalist>
+          <label v-if="form.modelMappings.length" class="mapping-target-control">
+            <span>{{ t("bulkTargetModel") }}</span>
+            <select v-model="selectedTargetModel" @change="applyTargetModel">
+              <option value="" disabled>{{ t("selectTargetModel") }}</option>
+              <option v-for="model in targetModelChoices" :key="model" :value="model">{{ model }}</option>
+            </select>
+            <small>{{ t("bulkTargetModelHint") }}</small>
+          </label>
           <div
             v-for="(mapping, index) in form.modelMappings"
             :key="index"
@@ -277,7 +309,17 @@ async function copyRouterUrl(provider: Provider): Promise<void> {
             </button>
             <input v-model.trim="mapping.from" required placeholder="source-model, prefix*, or ?" autocomplete="off">
             <span>→</span>
-            <input v-model.trim="mapping.to" required placeholder="target-model" autocomplete="off">
+            <input
+              v-model.trim="mapping.to"
+              required
+              list="provider-target-models"
+              :placeholder="t('individualTargetModel')"
+              autocomplete="off"
+            >
+            <select v-model="mapping.route" :aria-label="t('mappingRoute')">
+              <option value="responses">{{ t("responsesRoute") }}</option>
+              <option value="messages">{{ t("messagesRoute") }}</option>
+            </select>
             <button class="icon-button mapping-toggle" :class="{ 'is-disabled': !mapping.enabled }" type="button" :title="mapping.enabled ? t('disableMapping') : t('enableMapping')" @click="mapping.enabled = !mapping.enabled">
               <Power :size="14" />
             </button>
