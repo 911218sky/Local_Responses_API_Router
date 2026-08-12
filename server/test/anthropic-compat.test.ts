@@ -17,12 +17,15 @@ test("converts Anthropic messages, tools, and tool results to Responses input", 
         input_schema: { type: "object", properties: { path: { type: "string" } } },
       },
     ],
+    thinking: { type: "adaptive" },
+    output_config: { effort: "high" },
   })
 
   expect(converted.request).toMatchObject({
     model: "gpt-5.6-terra",
     stream: false,
     tools: [{ type: "function", name: "list_dir" }],
+    reasoning: { effort: "high" },
     input: [
       { role: "system", content: [{ type: "input_text", text: "Be concise." }] },
       { role: "user", content: [{ type: "input_text", text: "List files." }] },
@@ -31,6 +34,30 @@ test("converts Anthropic messages, tools, and tool results to Responses input", 
     ],
   })
 })
+
+test("does not invent Responses reasoning when Claude omits an effort level", () => {
+  const converted = anthropicToResponses({
+    model: "gpt-5.6-terra",
+    messages: [{ role: "user", content: "Hello" }],
+    thinking: { type: "enabled", budget_tokens: 4096 },
+  })
+
+  expect(converted.request.reasoning).toBeUndefined()
+})
+
+test.each(["low", "medium", "high", "xhigh", "max"])(
+  "preserves Claude effort %s exactly in Responses reasoning",
+  (effort) => {
+    const converted = anthropicToResponses({
+      model: "gpt-5.6-terra",
+      messages: [{ role: "user", content: "Hello" }],
+      thinking: { type: "adaptive" },
+      output_config: { effort },
+    })
+
+    expect(converted.request.reasoning).toEqual({ effort })
+  },
+)
 
 test("converts Responses text and function calls to an Anthropic message", () => {
   const converted = responsesToAnthropic(

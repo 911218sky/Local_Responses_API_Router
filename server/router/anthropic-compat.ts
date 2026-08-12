@@ -17,12 +17,14 @@ export function anthropicToResponses(value: JsonObject): AnthropicRequest {
 
   const tools = isJsonArray(value.tools) ? value.tools.map(toResponsesTool) : []
   const selectedTool = toolChoice(value.tool_choice)
+  const reasoning = responsesReasoning(value.output_config)
   const request: JsonObject = {
     model,
     input,
     stream: value.stream === true,
     ...(tools.length ? { tools } : {}),
     ...(selectedTool ? { tool_choice: selectedTool } : {}),
+    ...(reasoning ? { reasoning } : {}),
   }
   return { model, stream: value.stream === true, request }
 }
@@ -135,6 +137,13 @@ function toolChoice(value: unknown): JsonObject | undefined {
   if (value.type === "any") return { type: "required" }
   if (value.type === "tool" && stringValue(value.name)) return { type: "function", name: stringValue(value.name) }
   return undefined
+}
+
+function responsesReasoning(value: unknown): JsonObject | undefined {
+  if (!isJsonObject(value)) return undefined
+  const effort = stringValue(value.effort)
+  if (!effort) return undefined
+  return { effort }
 }
 
 function appendResponseItem(content: JsonArray, raw: unknown): void {

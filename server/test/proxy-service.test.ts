@@ -973,7 +973,7 @@ test("Given configured upstream providers, When the router handles compatible re
     assert(retriedStream.body.includes("resp_retried"), "the client should receive the successful retry stream")
 
     const anthropicBody = Buffer.from(
-      '{"model":"claude-source","max_tokens":16,"messages":[{"role":"user","content":"hello"}]}',
+      '{"model":"claude-source","max_tokens":16,"messages":[{"role":"user","content":"hello"}],"thinking":{"type":"adaptive"},"output_config":{"effort":"high"}}',
     )
     const anthropicStatus = await postRaw(
       "/direct/v1/messages",
@@ -1007,7 +1007,11 @@ test("Given configured upstream providers, When the router handles compatible re
       undefined,
       "converted requests must not forward Anthropic protocol headers to Responses",
     )
-    assert.strictEqual(convertedAnthropicRequest.body?.reasoning, undefined, "converted requests must not add Codex reasoning")
+    assert.deepStrictEqual(
+      convertedAnthropicRequest.body?.reasoning,
+      { effort: "high" },
+      "converted requests should preserve Claude effort as Responses reasoning",
+    )
     assert.strictEqual(convertedAnthropicRequest.body?.include, undefined, "converted requests must not add Codex include fields")
     assert.strictEqual(
       convertedAnthropicRequest.body?.client_metadata,
