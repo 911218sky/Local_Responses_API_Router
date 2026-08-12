@@ -6,7 +6,7 @@ import type { Provider } from "~/types"
 import { providerRouterRouteFormat, providerRouterUrl } from "~/utils/router-url"
 
 const props = defineProps<{ dashboard: ReturnType<typeof import("~/composables/useDashboard").useDashboard> }>()
-const emit = defineEmits<{ openProviders: []; openTraffic: [] }>()
+const emit = defineEmits<{ openProviders: [] }>()
 const { t } = useLocale()
 const active = computed(() => props.dashboard.router.value?.activeRequests ?? [])
 const recent = computed(() => props.dashboard.logs.value.slice(0, 12))
@@ -142,23 +142,5 @@ function providerRoute(provider: Provider): string {
         </label>
       </section>
     </div>
-    <section class="surface protocol">
-      <div class="section-head">
-        <div>
-          <h2>{{ t("conversionPath") }}</h2>
-          <p>{{ t("conversionPathHint") }}</p>
-        </div>
-        <button class="link-button" type="button" @click="emit('openTraffic')">{{ t("openLogs") }}</button>
-      </div>
-      <div class="protocol-line">
-        <span>{{ t("codexRequest") }}</span>
-        <code>POST /&lt;provider&gt;/v1/responses</code>
-        <b>→</b>
-        <span>Router</span>
-        <code>POST /v1/responses</code>
-        <b>→</b>
-        <span>{{ t("upstreamService") }}</span>
-      </div>
-    </section>
   </section>
 </template>

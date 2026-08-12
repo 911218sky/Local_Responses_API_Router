@@ -141,7 +141,7 @@ function stopRouterAndLeave(): void {
         </div>
       </header>
       <p v-if="dashboard.error.value" class="global-error" role="alert">{{ dashboard.error.value }}</p>
-      <DashboardOverview v-show="section === 'overview'" :dashboard="dashboard" @open-providers="section = 'providers'" @open-traffic="section = 'traffic'" />
+      <DashboardOverview v-show="section === 'overview'" :dashboard="dashboard" @open-providers="section = 'providers'" />
       <ProvidersView v-show="section === 'providers'" :dashboard="dashboard" />
       <ProviderTestView v-show="section === 'test'" :dashboard="dashboard" />
       <TrafficView v-show="section === 'traffic'" :dashboard="dashboard" />

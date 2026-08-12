@@ -198,9 +198,7 @@ class ProxyService extends EventEmitter {
       const requestBody = modelRewrite.bodyBuffer
       const config = this.getConfig()
       const started = Date.now()
-      // A route-only provider is already Anthropic-compatible. Preserve its Messages
-      // request instead of translating it through the OpenAI Responses endpoint.
-      if (isAnthropicMessagesPath(route.upstreamPath) && route.provider.routeOnly !== true) {
+      if (isAnthropicMessagesPath(route.upstreamPath)) {
         try {
           await this.handleAnthropicMessages(route, req, res, rawBody, activeRequest.id, started, config)
         } catch (error) {
@@ -340,8 +338,7 @@ class ProxyService extends EventEmitter {
     const original = tryJson(rawBody)
     const rewritten = rewriteModelObject(original, mappings)
     const incoming = isJsonObject(rewritten.body) ? rewritten.body : {}
-    const mapping = isJsonObject(original) ? matchingModelMapping(original, mappings) : undefined
-    if (mapping?.route === "messages") {
+    if (route.provider.routeOnly === true) {
       await this.forwardAnthropicMessages(route, req, res, rawBody, rewritten, activeId, started)
       return
     }

@@ -464,20 +464,6 @@ code {
   font-size: 11px;
   overflow-wrap: anywhere;
 }
-.protocol-line {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  color: var(--color-muted);
-}
-.protocol-line span {
-  color: var(--color-ink);
-  font-weight: 800;
-}
-.protocol-line b {
-  font-size: 18px;
-}
 .toggle-row {
   display: flex;
   align-items: center;

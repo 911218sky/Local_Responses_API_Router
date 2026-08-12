@@ -20,7 +20,6 @@ export interface ModelMapping {
   readonly from: string
   readonly to: string
   readonly enabled?: boolean
-  readonly route?: "responses" | "messages"
 }
 
 export interface DashboardAuth {

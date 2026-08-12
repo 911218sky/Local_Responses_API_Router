@@ -12,7 +12,6 @@ export interface ModelMapping {
   from: string
   to: string
   enabled?: boolean
-  route?: "responses" | "messages"
 }
 
 export interface RouterStatus {

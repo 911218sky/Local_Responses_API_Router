@@ -14,7 +14,7 @@ const form = ref({
   baseUrl: "",
   enabled: true,
   routeOnly: false,
-  modelMappings: [] as { from: string; to: string; enabled: boolean; route: "responses" | "messages" }[],
+  modelMappings: [] as { from: string; to: string; enabled: boolean }[],
 })
 const formError = ref("")
 const copyMessage = ref("")
@@ -32,10 +32,10 @@ function open(provider?: Provider): void {
         baseUrl: provider.baseUrl,
         enabled: provider.enabled,
         routeOnly: provider.routeOnly,
-        modelMappings: (provider.modelMappings ?? []).map((mapping) => ({
-          ...mapping,
-          enabled: mapping.enabled !== false,
-          route: mapping.route === "messages" ? "messages" : "responses",
+        modelMappings: (provider.modelMappings ?? []).map(({ from, to, enabled }) => ({
+          from,
+          to,
+          enabled: enabled !== false,
         })),
       }
     : { name: "", slug: "", baseUrl: "", enabled: true, routeOnly: false, modelMappings: [] }
@@ -44,7 +44,7 @@ function open(provider?: Provider): void {
 }
 
 function addMapping(): void {
-  form.value.modelMappings.push({ from: "", to: "", enabled: true, route: "responses" })
+  form.value.modelMappings.push({ from: "", to: "", enabled: true })
 }
 
 function removeMapping(index: number): void {
@@ -287,10 +287,6 @@ async function copyRouterUrl(provider: Provider): Promise<void> {
               :placeholder="t('individualTargetModel')"
               autocomplete="off"
             >
-            <select v-model="mapping.route" :aria-label="t('mappingRoute')">
-              <option value="responses">{{ t("responsesRoute") }}</option>
-              <option value="messages">{{ t("messagesRoute") }}</option>
-            </select>
             <button class="icon-button mapping-toggle" :class="{ 'is-disabled': !mapping.enabled }" type="button" :title="mapping.enabled ? t('disableMapping') : t('enableMapping')" @click="mapping.enabled = !mapping.enabled">
               <Power :size="14" />
             </button>

@@ -407,7 +407,7 @@ test("Given configured upstream providers, When the router handles compatible re
           routeOnly: false,
           modelMappings: [
             { from: "claude-source", to: "claude-target" },
-            { from: "claude-native", to: "claude-native-target", route: "messages" },
+            { from: "claude-native", to: "claude-native-target" },
           ],
         },
         {
@@ -1022,9 +1022,9 @@ test("Given configured upstream providers, When the router handles compatible re
       "Incoming test UA",
       "test-key",
     )
-    assert.strictEqual(nativeAnthropicStatus, 200, "native Anthropic mapping should reach the Messages endpoint")
+    assert.strictEqual(nativeAnthropicStatus, 200, "Anthropic mappings should use the provider conversion mode")
     const nativeAnthropicRequest = requiredValue(seen.at(-1), "native Anthropic upstream request should exist")
-    assert.strictEqual(nativeAnthropicRequest.url, "/v1/messages")
+    assert.strictEqual(nativeAnthropicRequest.url, "/v1/responses")
     assert.strictEqual(nativeAnthropicRequest.body?.model, "claude-native-target")
     assert.strictEqual(nativeAnthropicRequest.headers["anthropic-version"], undefined, "test request has no Anthropic protocol header")
     const routeOnlyLogCount = store.logs.length

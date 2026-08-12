@@ -157,7 +157,6 @@ function normalizeModelMappings(value: unknown): ModelMapping[] {
       from: stringOr(item.from).trim(),
       to: stringOr(item.to).trim(),
       enabled: item.enabled !== false,
-      route: (item.route === "messages" ? "messages" : "responses") as "messages" | "responses",
     }))
     .filter((item) => item.from.length > 0 && item.to.length > 0)
 }
