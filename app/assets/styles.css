@@ -902,30 +902,6 @@ code {
 .mapping-fieldset small {
   color: var(--color-muted);
 }
-.mapping-target-control {
-  display: grid;
-  grid-template-columns: minmax(130px, auto) minmax(220px, 1fr);
-  align-items: center;
-  gap: 6px 10px;
-  padding: 8px;
-  border: 1px solid var(--color-border);
-  background: var(--color-input);
-  color: var(--color-ink);
-  font-weight: 700;
-}
-.mapping-target-control select {
-  min-width: 0;
-  min-height: 36px;
-  padding: 6px 8px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-control);
-  background: var(--color-page);
-  color: var(--color-ink);
-}
-.mapping-target-control small {
-  grid-column: 1 / -1;
-  font-weight: 500;
-}
 .mapping-row {
   display: grid;
   grid-template-columns: auto minmax(150px, 1fr) auto minmax(150px, 1fr) minmax(112px, auto) auto auto auto auto;
