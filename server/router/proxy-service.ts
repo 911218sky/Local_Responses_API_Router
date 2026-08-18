@@ -266,6 +266,7 @@ class ProxyService extends EventEmitter {
             route.upstreamPath,
             config.codexProfile,
             this.contextStore,
+            resolveSessionId(req.headers, route.provider),
           )
           outbound = {
             headers: transformed.headers,

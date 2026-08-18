@@ -723,6 +723,33 @@ test("Given configured upstream providers, When the router handles compatible re
     assert.strictEqual(recovered.headers["x-codex-beta-features"], "configured-beta")
     assert.strictEqual(recovered.headers["x-openai-internal-codex-responses-lite"], "true")
     assert.strictEqual(recovered.request.prompt_cache_key, "test-session")
+    const explicitPromptCacheKey = transformToCodex(
+      { "x-interaction-id": "new-interaction-id" },
+      Buffer.from(JSON.stringify({ model: "test", input: [], prompt_cache_key: "dsh-stable-cache" })),
+      "/responses",
+      config.codexProfile,
+      reloadedContexts,
+    )
+    assert.strictEqual(explicitPromptCacheKey.request.prompt_cache_key, "dsh-stable-cache")
+    const fallbackBody = Buffer.from(JSON.stringify({ model: "test", input: [] }))
+    const fallbackFirst = transformToCodex(
+      {},
+      fallbackBody,
+      "/responses",
+      config.codexProfile,
+      reloadedContexts,
+      "unscoped:local",
+    )
+    const fallbackSecond = transformToCodex(
+      {},
+      fallbackBody,
+      "/responses",
+      config.codexProfile,
+      reloadedContexts,
+      "unscoped:local",
+    )
+    assert.strictEqual(fallbackFirst.request.prompt_cache_key, "unscoped:local")
+    assert.strictEqual(fallbackSecond.request.prompt_cache_key, fallbackFirst.request.prompt_cache_key)
     assert(
       requiredArray(recovered.request.input, "transformed input should be an array").some(
         (item) => objectFromUnknown(item).type === "function_call" && objectFromUnknown(item).call_id === "call_test",

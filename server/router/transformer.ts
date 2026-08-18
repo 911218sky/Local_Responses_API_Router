@@ -51,6 +51,7 @@ function transformToCodex(
   incomingPath: string | undefined,
   profile: CodexProfile,
   contextStore: ResponseContextStore,
+  fallbackSessionId?: string,
 ): {
   readonly headers: Headers
   readonly body: Buffer
@@ -82,11 +83,12 @@ function transformToCodex(
   }
   const requestTools = isJsonArray(requestBody.tools) ? requestBody.tools : []
 
+  const fallback = fallbackSessionId?.trim() || "unscoped"
   const sourceInteractionId =
     headerString(incomingHeaders["x-interaction-id"]) ||
     headerString(incomingHeaders["session-id"]) ||
     headerString(incomingHeaders["x-agent-task-id"]) ||
-    generateUUID()
+    fallback
   let sessionId = sourceInteractionId
   const requestId = headerString(incomingHeaders["x-client-request-id"]) || sourceInteractionId
   let threadId = headerString(incomingHeaders["thread-id"]) || sourceInteractionId
@@ -224,6 +226,10 @@ function transformToCodex(
   turnMetadata.session_id = sessionId
   turnMetadata.thread_id = threadId
   turnMetadata.window_id = windowId
+  const promptCacheKey =
+    typeof requestBody.prompt_cache_key === "string" && requestBody.prompt_cache_key.trim()
+      ? requestBody.prompt_cache_key.trim()
+      : sessionId
   const codexBody = {
     ...(requestBody.model === undefined ? {} : { model: requestBody.model }),
     input: codexInput,
@@ -233,7 +239,7 @@ function transformToCodex(
     store: false,
     stream: requestBody.stream === true,
     include: requestBody.include || ["reasoning.encrypted_content"],
-    prompt_cache_key: sessionId,
+    prompt_cache_key: promptCacheKey,
     text: requestBody.text || { verbosity: "low" },
     client_metadata: {
       "x-codex-installation-id": installationId,
@@ -253,7 +259,10 @@ function transformToCodex(
     type: "added",
     scope: "body",
     to: "body.prompt_cache_key",
-    label: "Stable interaction identifier for upstream cache",
+    label:
+      promptCacheKey === sessionId
+        ? "Used the stable session identifier for the upstream prompt cache"
+        : "Preserved the client-provided prompt cache key for the upstream prompt cache",
   })
 
   const outputBuffer = Buffer.from(JSON.stringify(codexBody))

@@ -212,6 +212,33 @@ test("Given a partial SSE response, When the request times out, Then no response
   }
 })
 
+test("Given prompt cache keys, When cache estimates are finalized, Then estimates follow the upstream key", async () => {
+  const dataDirectory = await mkdtemp(path.join(os.tmpdir(), "router-cache-estimate-"))
+  const logs = new RequestLogStore(dataDirectory, () => true)
+  const firstId = logs.create({
+    sessionId: "shared-session",
+    outbound: { body: { prompt_cache_key: "cache-a", input: [{ text: "stable" }] } },
+  })
+  if (!firstId) throw new Error("Expected the first cache estimate log.")
+  logs.finalize(firstId, { status: "completed" })
+  const differentKeyId = logs.create({
+    sessionId: "shared-session",
+    outbound: { body: { prompt_cache_key: "cache-b", input: [{ text: "stable" }, { text: "next" }] } },
+  })
+  if (!differentKeyId) throw new Error("Expected the different-key cache estimate log.")
+  logs.finalize(differentKeyId, { status: "completed" })
+  expect(logs.get(differentKeyId)?.cacheComparison?.overlapChars).toBe(0)
+  const sameKeyId = logs.create({
+    sessionId: "different-session",
+    outbound: {
+      body: { prompt_cache_key: "cache-b", input: [{ text: "stable" }, { text: "next" }, { text: "more" }] },
+    },
+  })
+  if (!sameKeyId) throw new Error("Expected the same-key cache estimate log.")
+  logs.finalize(sameKeyId, { status: "completed" })
+  expect(logs.get(sameKeyId)?.cacheComparison?.overlapChars).toBeGreaterThan(0)
+})
+
 test("Given bounded context settings, When many volatile contexts are saved, Then old cache entries are evicted and clear removes them", async () => {
   resetResponseContexts()
   const dataDirectory = await mkdtemp(path.join(os.tmpdir(), "router-cache-"))

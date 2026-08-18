@@ -132,8 +132,10 @@ class RequestLogStore extends EventEmitter {
   }
 
   attachCacheEstimate(log: RequestLog): void {
-    const sessionKey = `${log.provider?.slug || "unknown"}:${log.sessionId || "unknown"}`
     const outboundBody = isJsonObject(log.outbound) && isJsonObject(log.outbound.body) ? log.outbound.body : null
+    const promptCacheKey = typeof outboundBody?.prompt_cache_key === "string" ? outboundBody.prompt_cache_key : ""
+    const cacheIdentity = promptCacheKey || log.sessionId || "unknown"
+    const sessionKey = `${log.provider?.slug || "unknown"}:${cacheIdentity}`
     const current = outboundBody?.input ? JSON.stringify(outboundBody.input) : ""
     const previous = this.previousInputs.get(sessionKey) || ""
     const overlapChars = commonPrefixLength(previous, current)
@@ -144,7 +146,8 @@ class RequestLogStore extends EventEmitter {
     const actualPercent = inputTokens && cachedTokens !== null ? round((cachedTokens / inputTokens) * 100) : null
     log.cacheComparison = {
       method:
-        "Longest common prefix of successive serialized input values. This is a character-based estimate, not a token count.",
+        "Longest common prefix of successive serialized input values grouped by provider and prompt_cache_key. This is a character-based estimate, not a token count.",
+      cacheKey: promptCacheKey || null,
       overlapChars,
       currentChars: current.length,
       estimatedPercent,
